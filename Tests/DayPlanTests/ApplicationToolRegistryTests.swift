@@ -11,8 +11,12 @@ struct ApplicationToolRegistryTests {
             ListTodoistTasksTool(taskService: taskService),
             ListTodoistProjectsTool(taskService: taskService),
             ListTodoistLabelsTool(taskService: taskService),
+            GetTodoistTaskTool(taskService: taskService),
             CreateTodoistTaskTool(taskService: taskService),
+            UpdateTodoistTaskTool(taskService: taskService),
             CompleteTodoistTaskTool(taskService: taskService),
+            ReopenTodoistTaskTool(taskService: taskService),
+            DeleteTodoistTaskTool(taskService: taskService),
         ])
 
         let specifications = await registry.specifications()
@@ -21,9 +25,13 @@ struct ApplicationToolRegistryTests {
             specifications.map(\.name) == [
                 "todoist_complete_task",
                 "todoist_create_task",
+                "todoist_delete_task",
+                "todoist_get_task",
                 "todoist_list_labels",
                 "todoist_list_projects",
                 "todoist_list_tasks",
+                "todoist_reopen_task",
+                "todoist_update_task",
             ])
         for specification in specifications {
             let schema = try JSONSerialization.jsonObject(
@@ -98,12 +106,63 @@ struct ApplicationToolRegistryTests {
             }
         }
     }
+
+    @Test
+    func updateTaskPreservesOmittedFieldsAndClearsAnExplicitlyNullDueDate() async throws {
+        let provider = StubTodoistProvider()
+        let service = TodoistTaskService(provider: provider)
+        let registry = ApplicationToolRegistry(tools: [UpdateTodoistTaskTool(taskService: service)])
+        let input = Data(#"{"task_id":"task-1","due_date":null,"priority":4}"#.utf8)
+
+        _ = try await registry.execute(
+            name: "todoist_update_task",
+            input: input,
+            approval: .confirmedByUser
+        )
+
+        let patch = await provider.lastUpdatePatch()
+        if case .clear = patch?.dueDate {
+        } else {
+            Issue.record("An explicit null due_date was not treated as a clear.")
+        }
+        if case .set(4) = patch?.priority {
+        } else {
+            Issue.record("The supplied priority was not forwarded.")
+        }
+        if case .unchanged = patch?.content {
+        } else {
+            Issue.record("An omitted content field should remain unchanged.")
+        }
+    }
+
+    @Test
+    func rejectsUnknownToolPropertiesBeforeCallingTheService() async throws {
+        let provider = StubTodoistProvider()
+        let service = TodoistTaskService(provider: provider)
+        let registry = ApplicationToolRegistry(tools: [DeleteTodoistTaskTool(taskService: service)])
+        let input = Data(#"{"task_id":"task-1","force":true}"#.utf8)
+
+        do {
+            _ = try await registry.execute(
+                name: "todoist_delete_task", input: input, approval: .confirmedByUser)
+            Issue.record("An undeclared tool argument was accepted.")
+        } catch let error as ApplicationToolError {
+            if case .invalidInput = error {
+                #expect(await provider.deleteCallCount() == 0)
+            } else {
+                Issue.record("Unexpected application tool error.")
+            }
+        }
+    }
 }
 
 private actor StubTodoistProvider: TodoistTaskProviding {
     private var createdDraft: TodoistTaskDraft?
+    private var updatedPatch: TodoistTaskPatch?
+    private var deletes = 0
 
-    func listTasks() async throws -> [TodoistTask] { [] }
+    func listTasks(limit: Int = 100, projectID: String? = nil) async throws -> [TodoistTask] { [] }
+    func getTask(id: String) async throws -> TodoistTask { TodoistTask(id: id, content: "Task") }
 
     func listProjects() async throws -> [TodoistProject] {
         [TodoistProject(id: "inbox", name: "Inbox", inboxProject: true)]
@@ -125,6 +184,14 @@ private actor StubTodoistProvider: TodoistTaskProviding {
     }
 
     func completeTask(id: String) async throws {}
+    func updateTask(id: String, patch: TodoistTaskPatch) async throws -> TodoistTask {
+        updatedPatch = patch
+        return TodoistTask(id: id, content: "Task")
+    }
+    func reopenTask(id: String) async throws {}
+    func deleteTask(id: String) async throws { deletes += 1 }
 
     func lastCreatedDraft() -> TodoistTaskDraft? { createdDraft }
+    func lastUpdatePatch() -> TodoistTaskPatch? { updatedPatch }
+    func deleteCallCount() -> Int { deletes }
 }

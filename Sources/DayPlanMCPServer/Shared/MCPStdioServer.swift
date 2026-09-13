@@ -1,0 +1,1 @@
+../../DayPlan/AI/MCP/MCPStdioServer.swift

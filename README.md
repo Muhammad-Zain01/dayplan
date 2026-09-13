@@ -13,7 +13,7 @@ DayPlan is a native macOS productivity app, starting with a Todoist-backed task 
 
 ## Current status
 
-The initial implementation provides the native app shell, local SQLite database setup, secure credential storage, and a Todoist task module for listing, creating, and completing tasks. The task composer supports descriptions, project selection (Inbox by default), due dates, priorities, and existing labels. OpenAI and Anthropic credentials can be stored securely for later provider modules. Task actions are registered as in-process AI tools; an AI model connection and MCP transport are not implemented yet.
+The app provides a native macOS shell, local SQLite setup, Keychain credential storage, and a Todoist task module. Its local MCP stdio endpoint supports task/project/label reads and task create, update, complete, reopen, and delete. Every write opens a native approval dialog; deletion explains that subtasks will also be deleted. MCP uses the same task service and Keychain service as the UI. This is a local MCP server, not an AI model connection or a remote ChatGPT connector.
 
 ## Build and run locally
 
@@ -30,6 +30,24 @@ The packaging script builds a local `.app` bundle with a DayPlan icon so macOS s
 ```sh
 swift test
 ```
+
+## Connect a local MCP client
+
+Build the app bundle, then add the following server entry to a compatible local MCP client's configuration. Replace the executable path with the path where you installed `DayPlan.app`:
+
+```json
+{
+  "mcpServers": {
+    "dayplan": {
+      "command": "/Applications/DayPlan.app/Contents/Helpers/dayplan-mcp"
+    }
+  }
+}
+```
+
+The server uses newline-delimited JSON-RPC over stdin/stdout and supports MCP `2026-07-28` stateless requests plus older initialize-based revisions. Keep stdout reserved for MCP messages. In Settings, **Copy Claude Desktop configuration** copies a configuration fragment using the current app executable path; paste it into the host yourself. The server reads the `com.dayplan.app` credential from macOS Keychain. It does not need API keys in arguments or environment variables. DayPlan asks for confirmation separately for every write.
+
+Use `swift run DayPlanMCPServer` in a source checkout, or the bundled `Contents/Helpers/dayplan-mcp` executable for a stable installed path. Discovery and tool listing have been smoke-tested. Host-specific setup and live Todoist calls still need manual verification.
 
 The app's local database is created at:
 

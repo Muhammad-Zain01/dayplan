@@ -27,6 +27,24 @@ struct TodoistTaskDecodingTests {
     }
 
     @Test
+    func encodesOnlyPatchedTaskFieldsAndPreservesExplicitDateClearing() throws {
+        let request = TodoistUpdateTaskRequest(
+            patch: TodoistTaskPatch(
+                dueDate: .clear,
+                priority: .set(4)
+            )
+        )
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+        )
+
+        #expect(object["due_date"] is NSNull)
+        #expect(object["priority"] as? Int == 4)
+        #expect(object["content"] == nil)
+        #expect(object["description"] == nil)
+    }
+
+    @Test
     func decodesTodoistTaskAndOptionalDueDate() throws {
         let payload = Data(
             #"{"id":"task-42","content":"Plan the day","description":"Choose three priorities","due":{"date":"2026-09-14"},"priority":3}"#

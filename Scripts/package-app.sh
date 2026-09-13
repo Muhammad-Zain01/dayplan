@@ -8,8 +8,9 @@ ICONSET_DIR="$CONTENTS_DIR/Resources/AppIcon.iconset"
 
 swift build --package-path "$ROOT_DIR" -c debug
 rm -rf "$APP_BUNDLE"
-mkdir -p "$CONTENTS_DIR/MacOS" "$ICONSET_DIR"
+mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Helpers" "$ICONSET_DIR"
 cp "$ROOT_DIR/.build/debug/DayPlan" "$CONTENTS_DIR/MacOS/DayPlan"
+cp "$ROOT_DIR/.build/debug/DayPlanMCPServer" "$CONTENTS_DIR/Helpers/dayplan-mcp"
 
 swift "$ROOT_DIR/Scripts/GenerateAppIcon.swift" "$ROOT_DIR/.build/dayplan-icon.png"
 for size in 16 32 64 128 256 512 1024; do

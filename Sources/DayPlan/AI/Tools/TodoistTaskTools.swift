@@ -3,8 +3,10 @@ import Foundation
 final class ListTodoistTasksTool: ApplicationTool, Sendable {
     let specification = ApplicationToolSpecification(
         name: "todoist_list_tasks",
-        description: "List active tasks from the connected Todoist account.",
-        inputSchemaJSON: #"{"type":"object","properties":{"limit":{"type":"integer","minimum":1,"maximum":100},"project_id":{"type":"string","minLength":1}},"additionalProperties":false}"#,
+        description:
+            "List up to 100 active tasks from the connected Todoist account. Use project_id to filter to one project. The default limit is 100.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"limit":{"type":"integer","minimum":1,"maximum":100},"project_id":{"type":"string","minLength":1}},"additionalProperties":false}"#,
         requiresUserConfirmation: false
     )
 
@@ -17,7 +19,9 @@ final class ListTodoistTasksTool: ApplicationTool, Sendable {
     func execute(input: Data) async throws -> Data {
         do {
             let request = try JSONDecoder().decode(ListTasksToolInput.self, from: input)
-            return try JSONEncoder().encode(await taskService.listTasks(limit: request.limit ?? 100, projectID: request.projectID))
+            return try JSONEncoder().encode(
+                await taskService.listTasks(
+                    limit: request.limit ?? 100, projectID: request.projectID))
         } catch is DecodingError {
             throw ApplicationToolError.invalidInput
         }
@@ -27,8 +31,10 @@ final class ListTodoistTasksTool: ApplicationTool, Sendable {
 final class GetTodoistTaskTool: ApplicationTool, Sendable {
     let specification = ApplicationToolSpecification(
         name: "todoist_get_task",
-        description: "Get one active Todoist task by its exact task_id. Discover opaque IDs with todoist_list_tasks; do not guess them.",
-        inputSchemaJSON: #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"],"additionalProperties":false}"#,
+        description:
+            "Get one active Todoist task by its exact task_id. Discover opaque IDs with todoist_list_tasks; do not guess them.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"],"additionalProperties":false}"#,
         requiresUserConfirmation: false
     )
     private let taskService: any TaskOperating
@@ -95,7 +101,7 @@ final class CreateTodoistTaskTool: ApplicationTool, Sendable {
         description:
             "Create one Todoist task. Use a project ID from todoist_list_projects when the user names a project and label names from todoist_list_labels when labels are requested. Without project_id the task goes to Inbox. due_date is YYYY-MM-DD. Todoist API priority is 1 for P4/normal through 4 for P1/urgent.",
         inputSchemaJSON:
-            #"{"type":"object","properties":{"content":{"type":"string","minLength":1},"description":{"type":"string"},"project_id":{"type":"string","minLength":1},"due_date":{"type":"string","format":"date"},"priority":{"type":"integer","minimum":1,"maximum":4},"labels":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true}},"required":["content"],"additionalProperties":false}"#,
+            #"{"type":"object","properties":{"content":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":5000},"project_id":{"type":"string","minLength":1,"maxLength":128},"due_date":{"type":"string","format":"date"},"priority":{"type":"integer","minimum":1,"maximum":4},"labels":{"type":"array","maxItems":50,"items":{"type":"string","minLength":1,"maxLength":100},"uniqueItems":true}},"required":["content"],"additionalProperties":false}"#,
         requiresUserConfirmation: true
     )
 
@@ -155,41 +161,49 @@ final class CompleteTodoistTaskTool: ApplicationTool, Sendable {
 final class UpdateTodoistTaskTool: ApplicationTool, Sendable {
     let specification = ApplicationToolSpecification(
         name: "todoist_update_task",
-        description: "Update supplied fields on one Todoist task. Omitted fields stay unchanged; pass due_date as null to clear its date. Todoist priority is 1 (P4/normal) through 4 (P1/urgent). Requires DayPlan confirmation.",
-        inputSchemaJSON: #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1},"content":{"type":"string","minLength":1},"description":{"type":"string"},"due_date":{"type":["string","null"],"format":"date"},"priority":{"type":"integer","minimum":1,"maximum":4},"labels":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true}},"required":["task_id"],"additionalProperties":false,"minProperties":2}"#,
+        description:
+            "Update supplied fields on one Todoist task. Omitted fields stay unchanged; pass due_date as null to clear its date. Todoist priority is 1 (P4/normal) through 4 (P1/urgent). Requires DayPlan confirmation.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1,"maxLength":128},"content":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":5000},"due_date":{"type":["string","null"],"format":"date"},"priority":{"type":"integer","minimum":1,"maximum":4},"labels":{"type":"array","maxItems":50,"items":{"type":"string","minLength":1,"maxLength":100},"uniqueItems":true}},"required":["task_id"],"additionalProperties":false,"minProperties":2}"#,
         requiresUserConfirmation: true
     )
     private let taskService: any TaskOperating
     init(taskService: any TaskOperating) { self.taskService = taskService }
     func execute(input: Data) async throws -> Data {
         let request: UpdateTaskToolInput
-        do { request = try JSONDecoder().decode(UpdateTaskToolInput.self, from: input) }
-        catch { throw ApplicationToolError.invalidInput }
+        do { request = try JSONDecoder().decode(UpdateTaskToolInput.self, from: input) } catch {
+            throw ApplicationToolError.invalidInput
+        }
         guard request.hasChanges else { throw ApplicationToolError.invalidInput }
         let patch = TodoistTaskPatch(
             content: request.content.map(TaskField.set) ?? .unchanged,
             description: request.description.map(TaskField.set) ?? .unchanged,
-            dueDate: request.dueDate.wasProvided ? request.dueDate.value.map(TaskField.set) ?? .clear : .unchanged,
+            dueDate: request.dueDate.wasProvided
+                ? request.dueDate.value.map(TaskField.set) ?? .clear : .unchanged,
             priority: request.priority.map(TaskField.set) ?? .unchanged,
             labels: request.labels.map(TaskField.set) ?? .unchanged
         )
-        return try JSONEncoder().encode(await taskService.updateTask(id: request.taskID, patch: patch))
+        return try JSONEncoder().encode(
+            await taskService.updateTask(id: request.taskID, patch: patch))
     }
 }
 
 final class ReopenTodoistTaskTool: ApplicationTool, Sendable {
     let specification = ApplicationToolSpecification(
         name: "todoist_reopen_task",
-        description: "Reopen one completed Todoist task by task_id. Discover the exact ID; requires DayPlan confirmation.",
-        inputSchemaJSON: #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"],"additionalProperties":false}"#,
+        description:
+            "Reopen one completed Todoist task by task_id. Discover the exact ID; requires DayPlan confirmation.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"],"additionalProperties":false}"#,
         requiresUserConfirmation: true
     )
     private let taskService: any TaskOperating
     init(taskService: any TaskOperating) { self.taskService = taskService }
     func execute(input: Data) async throws -> Data {
         let request: TaskIDToolInput
-        do { request = try JSONDecoder().decode(TaskIDToolInput.self, from: input) }
-        catch { throw ApplicationToolError.invalidInput }
+        do { request = try JSONDecoder().decode(TaskIDToolInput.self, from: input) } catch {
+            throw ApplicationToolError.invalidInput
+        }
         try await taskService.reopenTask(id: request.taskID)
         return Data("{\"reopened\":true}".utf8)
     }
@@ -198,16 +212,19 @@ final class ReopenTodoistTaskTool: ApplicationTool, Sendable {
 final class DeleteTodoistTaskTool: ApplicationTool, Sendable {
     let specification = ApplicationToolSpecification(
         name: "todoist_delete_task",
-        description: "Permanently delete one Todoist task by task_id. Todoist also deletes all of its subtasks. DayPlan always shows a separate confirmation stating this consequence.",
-        inputSchemaJSON: #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"],"additionalProperties":false}"#,
+        description:
+            "Permanently delete one Todoist task by task_id. Todoist also deletes all of its subtasks. DayPlan always shows a separate confirmation stating this consequence.",
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"task_id":{"type":"string","minLength":1}},"required":["task_id"],"additionalProperties":false}"#,
         requiresUserConfirmation: true
     )
     private let taskService: any TaskOperating
     init(taskService: any TaskOperating) { self.taskService = taskService }
     func execute(input: Data) async throws -> Data {
         let request: TaskIDToolInput
-        do { request = try JSONDecoder().decode(TaskIDToolInput.self, from: input) }
-        catch { throw ApplicationToolError.invalidInput }
+        do { request = try JSONDecoder().decode(TaskIDToolInput.self, from: input) } catch {
+            throw ApplicationToolError.invalidInput
+        }
         try await taskService.deleteTask(id: request.taskID)
         return Data("{\"deleted\":true,\"subtasks_also_deleted\":true}".utf8)
     }
@@ -260,9 +277,15 @@ private struct UpdateTaskToolInput: Decodable {
     let priority: Int?
     let labels: [String]?
 
-    var hasChanges: Bool { content != nil || description != nil || dueDate.wasProvided || priority != nil || labels != nil }
+    var hasChanges: Bool {
+        content != nil || description != nil || dueDate.wasProvided || priority != nil
+            || labels != nil
+    }
 
-    private enum CodingKeys: String, CodingKey { case taskID = "task_id"; case content; case description; case dueDate = "due_date"; case priority; case labels }
+    private enum CodingKeys: String, CodingKey {
+        case taskID = "task_id"; case content; case description; case dueDate = "due_date";
+        case priority; case labels
+    }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         taskID = try container.decode(String.self, forKey: .taskID)
@@ -271,8 +294,12 @@ private struct UpdateTaskToolInput: Decodable {
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
         labels = try container.decodeIfPresent([String].self, forKey: .labels)
         if container.contains(.dueDate) {
-            dueDate = ProvidedValue(wasProvided: true, value: try container.decodeIfPresent(String.self, forKey: .dueDate))
-        } else { dueDate = ProvidedValue(wasProvided: false, value: nil) }
+            dueDate = ProvidedValue(
+                wasProvided: true,
+                value: try container.decodeIfPresent(String.self, forKey: .dueDate))
+        } else {
+            dueDate = ProvidedValue(wasProvided: false, value: nil)
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 protocol TodoistTaskOperating: Sendable {
-    func listTasks(limit: Int = 100, projectID: String? = nil) async throws -> [TodoistTask]
+    func listTasks(limit: Int, projectID: String?) async throws -> [TodoistTask]
     func getTask(id: String) async throws -> TodoistTask
     func listProjects() async throws -> [TodoistProject]
     func listLabels() async throws -> [TodoistLabel]
@@ -13,6 +13,12 @@ protocol TodoistTaskOperating: Sendable {
 }
 
 typealias TodoistTaskProviding = TodoistTaskOperating
+
+extension TodoistTaskOperating {
+    func listTasks() async throws -> [TodoistTask] {
+        try await listTasks(limit: 100, projectID: nil)
+    }
+}
 
 enum TaskField<Value: Sendable>: Sendable {
     case unchanged
@@ -36,7 +42,13 @@ struct TodoistTaskPatch: Sendable {
             result.description = .set(value.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         if case .set(let value) = labels {
-            result.labels = .set(Array(Set(value.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })).sorted())
+            result.labels = .set(
+                Array(
+                    Set(
+                        value.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter {
+                            !$0.isEmpty
+                        })
+                ).sorted())
         }
         return result
     }

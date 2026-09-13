@@ -19,7 +19,9 @@ final class TodoistAPIClient: TodoistTaskProviding, @unchecked Sendable {
         repeat {
             var components = URLComponents(
                 url: try endpoint("tasks"), resolvingAgainstBaseURL: false)
-            var queryItems = [URLQueryItem(name: "limit", value: String(min(100, boundedLimit - tasks.count)))]
+            var queryItems = [
+                URLQueryItem(name: "limit", value: String(min(100, boundedLimit - tasks.count)))
+            ]
             if let projectID, !projectID.isEmpty {
                 queryItems.append(URLQueryItem(name: "project_id", value: projectID))
             }
@@ -41,8 +43,9 @@ final class TodoistAPIClient: TodoistTaskProviding, @unchecked Sendable {
     func getTask(id: String) async throws -> TodoistTask {
         let token = try await accessToken()
         let data = try await sendRequest(url: endpoint("tasks/\(id)"), method: "GET", token: token)
-        do { return try JSONDecoder().decode(TodoistTask.self, from: data) }
-        catch { throw TodoistAPIError.invalidResponse }
+        do { return try JSONDecoder().decode(TodoistTask.self, from: data) } catch {
+            throw TodoistAPIError.invalidResponse
+        }
     }
 
     func listProjects() async throws -> [TodoistProject] {
@@ -153,8 +156,9 @@ final class TodoistAPIClient: TodoistTaskProviding, @unchecked Sendable {
         request.timeoutInterval = 20
         request.httpBody = try JSONEncoder().encode(TodoistUpdateTaskRequest(patch: patch))
         let data = try await send(request)
-        do { return try JSONDecoder().decode(TodoistTask.self, from: data) }
-        catch { throw TodoistAPIError.invalidResponse }
+        do { return try JSONDecoder().decode(TodoistTask.self, from: data) } catch {
+            throw TodoistAPIError.invalidResponse
+        }
     }
 
     private func accessToken() async throws -> String {
@@ -200,7 +204,7 @@ final class TodoistAPIClient: TodoistTaskProviding, @unchecked Sendable {
     }
 }
 
-private struct TodoistUpdateTaskRequest: Encodable {
+struct TodoistUpdateTaskRequest: Encodable {
     let patch: TodoistTaskPatch
 
     func encode(to encoder: Encoder) throws {
@@ -213,7 +217,8 @@ private struct TodoistUpdateTaskRequest: Encodable {
     }
 
     private func encode<Value: Encodable>(
-        _ field: TaskField<Value>, key: CodingKeys, in container: inout KeyedEncodingContainer<CodingKeys>
+        _ field: TaskField<Value>, key: CodingKeys,
+        in container: inout KeyedEncodingContainer<CodingKeys>
     ) throws {
         switch field {
         case .unchanged: break

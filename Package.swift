@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "DayPlan", targets: ["DayPlan"]),
+        .executable(name: "DayPlanMCPServer", targets: ["DayPlanMCPServer"]),
     ],
     targets: [
         .systemLibrary(
@@ -16,8 +17,17 @@ let package = Package(
             name: "DayPlan",
             dependencies: ["CSQLite"],
             path: "Sources/DayPlan",
+            exclude: ["AI/MCP"],
             linkerSettings: [
                 .linkedFramework("Security"),
+            ]
+        ),
+        .executableTarget(
+            name: "DayPlanMCPServer",
+            path: "Sources/DayPlanMCPServer",
+            linkerSettings: [
+                .linkedFramework("Security"),
+                .linkedFramework("AppKit"),
             ]
         ),
         .testTarget(

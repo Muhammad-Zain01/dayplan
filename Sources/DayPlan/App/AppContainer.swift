@@ -22,8 +22,12 @@ final class AppContainer: ObservableObject {
             ListTodoistTasksTool(taskService: taskService),
             ListTodoistProjectsTool(taskService: taskService),
             ListTodoistLabelsTool(taskService: taskService),
+            GetTodoistTaskTool(taskService: taskService),
             CreateTodoistTaskTool(taskService: taskService),
+            UpdateTodoistTaskTool(taskService: taskService),
             CompleteTodoistTaskTool(taskService: taskService),
+            ReopenTodoistTaskTool(taskService: taskService),
+            DeleteTodoistTaskTool(taskService: taskService),
         ])
 
         credentialSettings = CredentialSettingsViewModel(

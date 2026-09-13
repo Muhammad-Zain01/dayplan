@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
     @ObservedObject var viewModel: CredentialSettingsViewModel
@@ -25,6 +26,31 @@ struct SettingsView: View {
                 credentialRow(for: .anthropic)
                 Text(
                     "AI provider keys are stored in Keychain. Provider connections will be added in a later module."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Section("MCP server") {
+                LabeledContent("Local stdio server", value: "Available on launch")
+                Text(
+                    "Connect a local MCP client to DayPlan. Reads run immediately; every task change asks for confirmation in a DayPlan dialog."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    "Tools: list/get projects, labels and tasks; create, update, complete, reopen and delete tasks."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Button("Copy Claude Desktop configuration") {
+                    copyMCPConfiguration()
+                }
+                .help(
+                    "Copies a configuration fragment. Paste it into your MCP client's configuration file."
+                )
+                Text(
+                    "The MCP process reads the Todoist token from this app's Keychain service. DayPlan does not edit client configuration files."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -92,5 +118,26 @@ struct SettingsView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func copyMCPConfiguration() {
+        let executablePath = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Helpers/dayplan-mcp")
+            .path
+        let configuration: [String: Any] = [
+            "mcpServers": [
+                "dayplan": [
+                    "command": executablePath,
+                    "args": [],
+                ]
+            ]
+        ]
+        guard
+            let data = try? JSONSerialization.data(
+                withJSONObject: configuration, options: [.prettyPrinted, .sortedKeys]),
+            let text = String(data: data, encoding: .utf8)
+        else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

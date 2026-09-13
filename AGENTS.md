@@ -35,6 +35,10 @@ These rules apply to every automated or human contributor working in this reposi
 - Require user approval before destructive task operations or bulk changes.
 - Keep AI-provider implementations replaceable; avoid tying task-domain logic to one vendor.
 - Keep MCP transport and tool registration separate from the task application services.
+- The local MCP stdio endpoint is the `DayPlanMCPServer` helper target; it must call `ApplicationToolRegistry` and shared task use cases.
+- Every MCP write must receive a DayPlan native confirmation before registry execution. MCP client approval hints are never authorization.
+- Keep MCP stdout protocol-only. Send diagnostics to stderr, and keep credentials out of the JSON-RPC boundary.
+- Update `SKILL.md`, `MCP_IMPLEMENTATION_PLAN.md`, `ARCHITECTURE.md`, and `README.md` whenever callable tools or MCP setup change.
 
 ## Verification workflow
 

@@ -11,7 +11,7 @@ DayPlan is a native macOS productivity application for personal use. The first f
 - SQLite through the system SQLite library; no third-party database package.
 - `URLSession` for Todoist and future provider networking.
 - macOS Keychain for API credentials.
-- MCP integration is a planned adapter layer. This scaffold does not yet implement MCP transport or claim to connect to Codex, ChatGPT, or Claude.
+- A separate local MCP stdio helper is implemented in `Sources/DayPlanMCPServer/` and packaged at `Contents/Helpers/dayplan-mcp`; remote MCP and AI-provider connections are not implemented.
 
 ## Module boundaries
 
@@ -22,8 +22,7 @@ SwiftUI Features
   │               └── SQLite task cache
   └── Settings ──> Credential service ──> macOS Keychain
 
-Future AI provider adapters and MCP server/client adapters call the same
-use-case services used by the UI. They must not duplicate task rules.
+The MCP stdio helper and UI call the same task use cases. Future modules add tools to the application tool registry; they must not duplicate business rules or transport code.
 ```
 
 ### Application and presentation
@@ -48,11 +47,15 @@ Todoist, OpenAI, and Anthropic credentials belong in macOS Keychain. SQLite stor
 
 ### AI tools and MCP
 
-AI providers are separate adapters behind provider-neutral interfaces. The app remains useful without an AI provider. The current in-process task tools are `todoist_list_tasks`, `todoist_list_projects`, `todoist_list_labels`, `todoist_create_task`, and `todoist_complete_task`. Task creation accepts a description, optional project (Inbox by default), date, Todoist priority, and existing label names. The UI and tools call the same `TodoistTaskService`, so business rules are not duplicated. Create and complete operations require an explicit approval value at the tool-registry boundary. These are in-process tools today; MCP transport and model connections are not yet implemented. A future MCP adapter must only pass approval after the app obtains the user's confirmation.
+AI providers are separate adapters behind provider-neutral interfaces. The app remains useful without an AI provider. The MCP task catalog exposes list tasks/projects/labels, get task, create, partial update, complete, reopen, and delete. List calls are bounded; task IDs are opaque. Create and update support due dates, priorities, and labels. Omitted update fields remain unchanged, and `due_date: null` clears a date. Todoist remains the source of truth.
+
+The MCP server speaks newline-delimited JSON-RPC through `MCPStdioServer` and uses the shared `ApplicationToolRegistry` and `TodoistTaskService`. It supports MCP `2026-07-28` stateless requests and older initialize-based revisions over local stdio. Reads run immediately. Every mutation opens a native macOS confirmation dialog showing the tool arguments; deletion also explains that Todoist deletes all subtasks. Tool input is checked against declared schemas and typed decoders. Results include structured content and secret-free errors. Settings can copy a local MCP client configuration fragment without editing another app's files.
+
+Initialization and tool discovery have been smoke-tested through the executable. This has not yet been verified inside supported third-party hosts, against live Todoist credentials, or with a full protocol conformance suite. The approval UI is currently a modal dialog, not an approval queue.
 
 The repository-root [SKILL.md](SKILL.md) provides the required authoring workflow and current AI-tool catalog; update it whenever a feature becomes AI-callable or an existing tool changes.
 
-The proposed phases for extracting shared services, implementing a local MCP server, completing Todoist task tools, and adding future module tools are in [MCP_IMPLEMENTATION_PLAN.md](MCP_IMPLEMENTATION_PLAN.md).
+Implementation status, release gaps, and the remote-access boundary are tracked in [MCP_IMPLEMENTATION_PLAN.md](MCP_IMPLEMENTATION_PLAN.md).
 
 ## Performance and reliability
 
@@ -67,6 +70,6 @@ The proposed phases for extracting shared services, implementing a local MCP ser
 1. Native application shell and navigation.
 2. Settings with Keychain-backed Todoist, OpenAI, and Anthropic credential slots.
 3. SQLite connection, schema versioning, and local app-data location.
-4. Todoist task listing, creation, and completion through the REST API.
-5. In-process AI tool specifications and registry over the shared task service.
+4. Todoist task listing, creation, partial updates, completion, reopening, and deletion through REST API v1.
+5. Local MCP stdio server and task tool catalog over the shared task service.
 6. Build and test instructions for local macOS development.
