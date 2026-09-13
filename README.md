@@ -11,7 +11,7 @@ DayPlan is a local-first desktop productivity app for macOS and Windows. It conn
 - Nine local MCP tools for Todoist task CRUD, task status changes, and project/label discovery. Every MCP write asks for approval in DayPlan.
 - SQLite local settings and app data; the Todoist token is encrypted with Electron safe storage before it is saved.
 
-The Electron migration is in progress. The preserved Swift baseline remains at the commit recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md) until cross-platform feature parity is verified.
+The Swift app and SwiftPM build files have been removed from the working tree. The pre-migration implementation remains recoverable from the baseline commit recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md). Windows packaging and release validation are still pending.
 
 ## Requirements
 

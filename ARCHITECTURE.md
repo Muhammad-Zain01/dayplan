@@ -64,4 +64,4 @@ Electron chooses a per-user application data directory through `app.getPath('use
 
 ## Migration tracking
 
-The Swift implementation and its tests remain available at the checkpoint recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md). Swift source is removed only after Electron parity and release verification.
+The Swift implementation, tests, package manifest, and packaging scripts have been removed from the working tree. They remain recoverable from the checkpoint recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md). Windows packaging and release verification are still pending.

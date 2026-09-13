@@ -8,7 +8,7 @@ Read [CODE_STANDARDS.md](CODE_STANDARDS.md) before changing application code. Th
 - Build the renderer with React, TypeScript, Vite, and the shadcn/ui component approach.
 - Settings currently supports only the Todoist API token. Do not add controls for future or unimplemented integrations.
 - Todoist remains the source of truth for remote tasks. SQLite holds local settings and app-owned data; any task cache must remain refreshable.
-- Keep the preserved Swift baseline at commit `11d3ddd82ea175040c16aa8c6e99d8b364092628` until Electron feature parity and cross-platform verification pass. Do not delete or rewrite Swift files before that release gate.
+- The Swift app, SwiftPM manifest, and Swift-only packaging scripts are retired from the working tree. The baseline commit `11d3ddd82ea175040c16aa8c6e99d8b364092628` preserves the historical implementation. Do not add Swift app code back; verify Windows packaging before declaring the Electron migration release-ready.
 
 ## Architecture
 

@@ -1,1 +1,0 @@
-../../DayPlan/Security/CredentialKind.swift

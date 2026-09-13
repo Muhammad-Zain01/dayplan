@@ -1,7 +1,3 @@
-.build/
-.swiftpm/
-DerivedData/
-*.xcuserstate
 .DS_Store
 node_modules/
 out/

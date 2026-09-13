@@ -1,1 +1,0 @@
-../../DayPlan/AI/Tools/ApplicationTool.swift
