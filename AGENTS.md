@@ -29,6 +29,7 @@ These rules apply to every automated or human contributor working in this reposi
 
 ## AI and MCP
 
+- Read `SKILL.md` when adding or changing any AI-callable capability. Update its tool catalog and descriptions as part of the same change.
 - Treat model output as untrusted input. Validate it against typed input models before executing a use case.
 - Expose narrow tools with clear descriptions and input schemas. Do not give a model unrestricted database, shell, or filesystem access.
 - Require user approval before destructive task operations or bulk changes.
@@ -38,6 +39,7 @@ These rules apply to every automated or human contributor working in this reposi
 ## Verification workflow
 
 - Run `swift build` after code changes and `swift test` when tests exist or behavior changes warrant them.
+- Keep Swift code formatted with `swift format format --configuration .swift-format --recursive --in-place Sources Tests` and check it with `swift format lint --configuration .swift-format --recursive --strict Sources Tests`.
 - Run the app with `swift run DayPlan` for local UI verification.
 - Add focused tests for persistence migrations, API decoding, credential status, and use-case behavior. Never use real credentials in tests.
 - Update `README.md` and `ARCHITECTURE.md` when setup commands, module responsibilities, storage policy, or integration status changes.

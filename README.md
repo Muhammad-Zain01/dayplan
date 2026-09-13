@@ -13,7 +13,7 @@ DayPlan is a native macOS productivity app, starting with a Todoist-backed task 
 
 ## Current status
 
-This repository is the application foundation. The initial implementation provides the native app shell, local SQLite database setup, secure credential storage, and modular extension points. Todoist, AI-provider, and MCP integrations are documented by their actual implementation status in the source and architecture document.
+The initial implementation provides the native app shell, local SQLite database setup, secure credential storage, and a Todoist task module for listing, creating, and completing tasks. The task composer supports descriptions, project selection (Inbox by default), due dates, priorities, and existing labels. OpenAI and Anthropic credentials can be stored securely for later provider modules. Task actions are registered as in-process AI tools; an AI model connection and MCP transport are not implemented yet.
 
 ## Build and run locally
 
@@ -21,10 +21,11 @@ Requirements: macOS and Xcode with the Swift command-line tools selected.
 
 ```sh
 swift build
-swift run DayPlan
+./Scripts/package-app.sh
+open .build/DayPlan.app
 ```
 
-Open `Package.swift` in Xcode to use its editor, previews where available, and debugger. Run the test suite with:
+The packaging script builds a local `.app` bundle with a DayPlan icon so macOS shows it in the Dock and app switcher. Re-run the script after code changes, then open the refreshed bundle. Open `Package.swift` in Xcode to use its editor, previews where available, and debugger. Run the test suite with:
 
 ```sh
 swift test
@@ -41,4 +42,6 @@ Credentials are stored in the macOS Keychain and are not stored in this database
 ## Repository documents
 
 - [Architecture](ARCHITECTURE.md)
+- [MCP implementation plan](MCP_IMPLEMENTATION_PLAN.md)
+- [AI/MCP tool authoring skill](SKILL.md)
 - [Agent instructions](AGENTS.md)
