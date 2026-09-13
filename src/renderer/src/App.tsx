@@ -86,7 +86,7 @@ export default function App() {
         }
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'DayPlan could not load your Todoist data.')
+      setError(caught instanceof Error ? caught.message : 'Dayplan could not load your Todoist data.')
     } finally {
       setLoading(false)
     }
@@ -157,15 +157,15 @@ export default function App() {
     <div className="app-shell min-h-screen bg-background text-foreground">
       <aside className="sidebar fixed inset-y-0 left-0 z-20 flex w-[236px] flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground max-[760px]:w-[72px] max-[760px]:items-center max-[760px]:px-2">
         <div className="px-3 pb-8 max-[760px]:px-0">
-          <picture className="max-[760px]:hidden">
-            <source media="(prefers-color-scheme: dark)" srcSet={dayplanLogoDark} />
-            <img src={dayplanLogoLight} alt="Dayplan" className="h-12 w-[190px] object-contain object-left" />
-          </picture>
+          <div className="max-[760px]:hidden">
+            <img src={dayplanLogoLight} alt="Dayplan" className="h-12 w-[190px] object-contain object-left dark:hidden" />
+            <img src={dayplanLogoDark} alt="Dayplan" className="hidden h-12 w-[190px] object-contain object-left dark:block" />
+          </div>
           <div className="ml-[57px] -mt-1 text-[11px] text-sidebar-muted max-[760px]:hidden">Personal workspace</div>
-          <picture className="hidden max-[760px]:block">
-            <source media="(prefers-color-scheme: dark)" srcSet={dayplanMarkDark} />
-            <img src={dayplanMarkLight} alt="Dayplan" className="h-11 w-11" />
-          </picture>
+          <div className="hidden max-[760px]:block">
+            <img src={dayplanMarkLight} alt="Dayplan" className="h-11 w-11 dark:hidden" />
+            <img src={dayplanMarkDark} alt="Dayplan" className="hidden h-11 w-11 dark:block" />
+          </div>
         </div>
 
         <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-muted max-[760px]:hidden">Workspace</div>
@@ -187,7 +187,7 @@ export default function App() {
             <Settings2 size={17} /><span className="max-[760px]:hidden">Settings</span>
           </button>
           <div className="flex items-center gap-3 border-t border-sidebar-border px-2 pt-4 max-[760px]:justify-center max-[760px]:px-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dbe8e6] text-xs font-semibold text-[#386d68]">Z</div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dbe8e6] text-xs font-semibold text-[#386d68] dark:bg-[#293736] dark:text-[#b5d0c9]">Z</div>
             <div className="min-w-0 max-[760px]:hidden"><div className="truncate text-xs font-medium">My workspace</div><div className="text-[10px] text-sidebar-muted">Personal</div></div>
           </div>
         </div>
@@ -297,12 +297,34 @@ function TaskPage({ section, tasks, loading, search, showCompleted, onShowComple
   </>
 }
 
-function SettingsPage({ configured, onSaved, onRemoved }: { configured: boolean; onSaved: () => void; onRemoved: () => void }) {
+function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onRemoved }: {
+  configured: boolean
+  appearance: AppearanceMode
+  onAppearanceChange: (mode: AppearanceMode) => void
+  onSaved: () => void
+  onRemoved: () => void
+}) {
   const [token, setToken] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [appearanceSaving, setAppearanceSaving] = useState(false)
+  const [appearanceError, setAppearanceError] = useState<string | null>(null)
+
+  async function changeAppearance(mode: AppearanceMode): Promise<void> {
+    if (mode === appearance) return
+    setAppearanceSaving(true)
+    setAppearanceError(null)
+    try {
+      await window.dayplan.setAppearance(mode)
+      onAppearanceChange(mode)
+    } catch (caught) {
+      setAppearanceError(caught instanceof Error ? caught.message : 'Appearance could not be saved.')
+    } finally {
+      setAppearanceSaving(false)
+    }
+  }
 
   async function save(): Promise<void> {
     setSaving(true); setError(null); setStatus(null)
@@ -331,7 +353,27 @@ function SettingsPage({ configured, onSaved, onRemoved }: { configured: boolean;
   }
 
   return <>
-    <PageHeading eyebrow="Preferences" title="Settings" description="One connection, kept private on this device." />
+    <PageHeading eyebrow="Preferences" title="Settings" description="Make Dayplan feel right for you and manage your connection." />
+    <Card className="mb-5 max-w-[760px]">
+      <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><Sun size={15} /></span>Appearance</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Choose how Dayplan looks on this device.</p></div></CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-3 gap-3 max-[520px]:grid-cols-1" role="group" aria-label="Appearance mode">
+          {([
+            { mode: 'system', label: 'System', detail: 'Follow your device', icon: Monitor },
+            { mode: 'light', label: 'Light', detail: 'Bright and clear', icon: Sun },
+            { mode: 'dark', label: 'Dark', detail: 'Easy on the eyes', icon: Moon },
+          ] as const).map(({ mode, label, detail, icon: Icon }) => {
+            const selected = appearance === mode
+            return <button key={mode} type="button" aria-pressed={selected} disabled={appearanceSaving} onClick={() => void changeAppearance(mode)} className={`flex min-h-[82px] items-center gap-3 rounded-xl border p-3 text-left transition disabled:cursor-wait disabled:opacity-70 ${selected ? 'border-primary bg-accent/70 ring-1 ring-primary/20' : 'border-border/70 bg-card hover:bg-muted/40'}`}>
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${selected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}><Icon size={17} /></span>
+              <span className="min-w-0"><span className="block text-xs font-semibold">{label}</span><span className="mt-1 block text-[11px] text-muted-foreground">{detail}</span></span>
+              {selected && <Check size={15} className="ml-auto shrink-0 text-primary" />}
+            </button>
+          })}
+        </div>
+        {appearanceError && <p role="alert" className="mt-3 text-xs text-rose-600 dark:text-rose-300">{appearanceError}</p>}
+      </CardContent>
+    </Card>
     <Card className="max-w-[760px]">
       <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300"><CheckCircle2 size={15} /></span>Todoist connection</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Connect your Todoist account to sync tasks, projects, priorities, and due dates. Your token stays on this computer.</p></div><Badge className={configured ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300' : ''}><span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${configured ? 'bg-emerald-500' : 'bg-slate-400'}`} />{configured ? 'Connected' : 'Not connected'}</Badge></CardHeader>
       <CardContent>
@@ -345,14 +387,14 @@ function SettingsPage({ configured, onSaved, onRemoved }: { configured: boolean;
           </div>
         </div>
         {(status || error) && <div role={error ? 'alert' : 'status'} className={`mt-4 rounded-xl px-3 py-2.5 text-xs ${error ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'}`}>{error ?? status}</div>}
-        <div className="mt-5 flex items-start gap-2 rounded-xl bg-muted/40 p-3 text-[11px] leading-5 text-muted-foreground"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" /><span>DayPlan encrypts your token with the operating system’s protected storage before saving it. The renderer never receives the saved token.</span></div>
+        <div className="mt-5 flex items-start gap-2 rounded-xl bg-muted/40 p-3 text-[11px] leading-5 text-muted-foreground"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" /><span>Dayplan encrypts your token with the operating system’s protected storage before saving it. The renderer never receives the saved token.</span></div>
       </CardContent>
     </Card>
   </>
 }
 
 function ConnectTodoist({ onOpenSettings }: { onOpenSettings: () => void }) {
-  return <div className="mx-auto flex min-h-[65vh] max-w-lg flex-col items-center justify-center text-center"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e6f0ed] text-[#4b8277] dark:bg-[#263a35] dark:text-[#a9cfc2]"><FolderKanban size={25} /></div><Badge className="mb-4 border-primary/15 bg-primary/5 text-primary">First, connect Todoist</Badge><h1 className="text-3xl font-semibold tracking-[-0.04em]">Your day, in one place.</h1><p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Connect your Todoist account and DayPlan will bring your tasks, priorities, and due dates into a calmer workspace.</p><Button className="mt-6" onClick={onOpenSettings}><Plus size={15} />Connect Todoist</Button><div className="mt-5 flex items-center gap-1.5 text-[11px] text-muted-foreground"><ShieldCheck size={13} className="text-emerald-600" />Your API token is encrypted and stored locally</div></div>
+  return <div className="mx-auto flex min-h-[65vh] max-w-lg flex-col items-center justify-center text-center"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e6f0ed] text-[#4b8277] dark:bg-[#263a35] dark:text-[#a9cfc2]"><FolderKanban size={25} /></div><Badge className="mb-4 border-primary/15 bg-primary/5 text-primary">First, connect Todoist</Badge><h1 className="text-3xl font-semibold tracking-[-0.04em]">Your day, in one place.</h1><p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Connect your Todoist account and Dayplan will bring your tasks, priorities, and due dates into a calmer workspace.</p><Button className="mt-6" onClick={onOpenSettings}><Plus size={15} />Connect Todoist</Button><div className="mt-5 flex items-center gap-1.5 text-[11px] text-muted-foreground"><ShieldCheck size={13} className="text-emerald-600" />Your API token is encrypted and stored locally</div></div>
 }
 
 function EmptyState({ icon: Icon, title, description, action }: { icon: typeof CircleHelp; title: string; description: string; action?: () => void }) {
