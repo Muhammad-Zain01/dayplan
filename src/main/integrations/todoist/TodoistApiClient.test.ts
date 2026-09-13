@@ -22,6 +22,20 @@ describe('TodoistApiClient', () => {
     expect(new Headers(request.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe('Bearer secret-test-token')
   })
 
+  it('reads completed-task history from Todoist items pages and follows its cursor', async () => {
+    const request = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 'done-1' }], next_cursor: 'next' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 'done-2' }], next_cursor: null }), { status: 200 }))
+    const client = new TodoistApiClient(credentialService('token') as never, request)
+
+    const result = await client.listCompletedTasks('2026-09-07T00:00:00Z', '2026-09-14T00:00:00Z')
+
+    expect(result.map((task) => task.id)).toEqual(['done-1', 'done-2'])
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls[0]?.[0].toString()).toContain('/tasks/completed/by_completion_date')
+    expect(request.mock.calls[1]?.[0].toString()).toContain('cursor=next')
+  })
+
   it('does not send a request when credentials are missing', async () => {
     const request = vi.fn<typeof fetch>()
     const client = new TodoistApiClient(credentialService(null) as never, request)

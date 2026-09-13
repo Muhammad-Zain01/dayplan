@@ -48,6 +48,10 @@ export class IpcController {
     this.handle(window, 'tasks:delete', (_event, taskId) => this.taskService.deleteTask(TaskIdSchema.parse(taskId)))
     this.handle(window, 'dashboard:metrics', () => this.dashboardService.getMetrics())
     this.handle(window, 'settings:todoist-status', () => this.settingsService.getTodoistStatus())
+    this.handle(window, 'settings:get-appearance', () => this.settingsService.getAppearance())
+    this.handle(window, 'settings:set-appearance', (_event, mode) => {
+      this.settingsService.setAppearance(z.enum(['system', 'light', 'dark']).parse(mode))
+    })
     this.handle(window, 'settings:save-todoist-token', (_event, token) => {
       return this.settingsService.saveTodoistToken(z.string().trim().min(1).max(4096).parse(token))
     })

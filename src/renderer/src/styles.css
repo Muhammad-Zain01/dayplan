@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
   --color-background: var(--background);
@@ -56,8 +57,34 @@
   background: var(--background);
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #151b1c;
+  --foreground: #e9eff0;
+  --card: #1c2425;
+  --card-foreground: #e9eff0;
+  --primary: #82aa9f;
+  --primary-foreground: #15201e;
+  --secondary: #273031;
+  --secondary-foreground: #d7e1e1;
+  --muted: #222b2c;
+  --muted-foreground: #a2adae;
+  --accent: #263131;
+  --border: #2d3839;
+  --input: #344041;
+  --destructive: #dc7373;
+  --sidebar: #192121;
+  --sidebar-foreground: #e4ebeb;
+  --sidebar-muted: #a2adad;
+  --sidebar-border: #2a3434;
+  --sidebar-active: #293736;
+  --sidebar-active-foreground: #b5d0c9;
+  --sidebar-hover: #222d2d;
+  --chart-grid: #344041;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     color-scheme: dark;
     --background: #151b1c;
     --foreground: #e9eff0;

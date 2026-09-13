@@ -52,3 +52,5 @@ export interface DashboardMetrics {
 }
 
 export type AppSection = 'dashboard' | 'today' | 'tasks' | 'settings'
+
+export type AppearanceMode = 'system' | 'light' | 'dark'

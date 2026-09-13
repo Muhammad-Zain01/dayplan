@@ -1,10 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BarChart3, CalendarDays, Check, CheckCircle2, ChevronRight, CircleHelp, Clock3,
-  FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Plus, Search, Settings2,
-  ShieldCheck, Sparkles, Target, TriangleAlert,
+  FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Moon, Monitor, Plus, Search, Settings2,
+  ShieldCheck, Sparkles, Sun, Target, TriangleAlert,
 } from 'lucide-react'
-import type { AppSection, DashboardMetrics, TaskDraft, TaskPatch, TodoistTask } from '../../shared/domain'
+import type { AppearanceMode, AppSection, DashboardMetrics, TaskDraft, TaskPatch, TodoistTask } from '../../shared/domain'
+import dayplanLogoDark from '../../../assets/branding/dayplan-logo-dark.svg'
+import dayplanLogoLight from '../../../assets/branding/dayplan-logo-light.svg'
+import dayplanMarkDark from '../../../assets/branding/dayplan-mark-dark.svg'
+import dayplanMarkLight from '../../../assets/branding/dayplan-mark-light.svg'
 import { TaskComposer } from './components/TaskComposer'
 import { TaskRow } from './components/TaskRow'
 import { Badge } from './components/ui/badge'
@@ -33,9 +37,31 @@ export default function App() {
   const [showCompletedTasks, setShowCompletedTasks] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [appearance, setAppearance] = useState<AppearanceMode>('system')
   const [composerOpen, setComposerOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<TodoistTask | undefined>()
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    let active = true
+    void window.dayplan.getAppearance()
+      .then((mode) => { if (active) setAppearance(mode) })
+      .catch(() => { if (active) setAppearance('system') })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = (): void => {
+      document.documentElement.dataset.theme = appearance === 'system'
+        ? systemTheme.matches ? 'dark' : 'light'
+        : appearance
+    }
+    applyTheme()
+    if (appearance !== 'system') return
+    systemTheme.addEventListener('change', applyTheme)
+    return () => systemTheme.removeEventListener('change', applyTheme)
+  }, [appearance])
 
   const refresh = useCallback(async (target: AppSection = section): Promise<void> => {
     setLoading(true)
@@ -130,9 +156,16 @@ export default function App() {
   return (
     <div className="app-shell min-h-screen bg-background text-foreground">
       <aside className="sidebar fixed inset-y-0 left-0 z-20 flex w-[236px] flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground max-[760px]:w-[72px] max-[760px]:items-center max-[760px]:px-2">
-        <div className="flex items-center gap-3 px-3 pb-8 max-[760px]:px-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm"><Check size={19} strokeWidth={2.5} /></div>
-          <div className="max-[760px]:hidden"><div className="text-[15px] font-semibold tracking-tight">DayPlan</div><div className="text-[11px] text-sidebar-muted">Personal workspace</div></div>
+        <div className="px-3 pb-8 max-[760px]:px-0">
+          <picture className="max-[760px]:hidden">
+            <source media="(prefers-color-scheme: dark)" srcSet={dayplanLogoDark} />
+            <img src={dayplanLogoLight} alt="Dayplan" className="h-12 w-[190px] object-contain object-left" />
+          </picture>
+          <div className="ml-[57px] -mt-1 text-[11px] text-sidebar-muted max-[760px]:hidden">Personal workspace</div>
+          <picture className="hidden max-[760px]:block">
+            <source media="(prefers-color-scheme: dark)" srcSet={dayplanMarkDark} />
+            <img src={dayplanMarkLight} alt="Dayplan" className="h-11 w-11" />
+          </picture>
         </div>
 
         <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-muted max-[760px]:hidden">Workspace</div>
@@ -170,7 +203,7 @@ export default function App() {
 
         <div className="mx-auto w-full max-w-[1440px] px-8 py-8 max-[760px]:px-4 max-[760px]:py-5">
           {error && <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"><span className="flex items-center gap-2"><TriangleAlert size={16} />{error}</span><Button size="sm" variant="outline" onClick={() => void refresh(section)}>Try again</Button></div>}
-          {!configured && section !== 'settings' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} loading={loading} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'settings' ? <SettingsPage configured={configured} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={showCompletedTasks} onShowCompleted={setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
+          {!configured && section !== 'settings' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} loading={loading} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'settings' ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={showCompletedTasks} onShowCompleted={setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
         </div>
       </main>
 

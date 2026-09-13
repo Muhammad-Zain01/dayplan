@@ -62,6 +62,6 @@ Electron chooses a per-user application data directory through `app.getPath('use
 - Screens include loading, empty, and error states. Dashboard metrics show their source and refresh time.
 - Release readiness requires Electron ABI rebuilds, tests, and package verification on macOS and Windows.
 
-## Migration tracking
+## Release status
 
-The Swift implementation, tests, package manifest, and packaging scripts have been removed from the working tree. They remain recoverable from the checkpoint recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md). Windows packaging and release verification are still pending.
+Windows packaging and release verification are still pending. See the [desktop implementation plan](DESKTOP_IMPLEMENTATION_PLAN.md) for current progress and remaining work.

@@ -18,11 +18,12 @@ export class AppServices {
   readonly mcpTools: TodoistTaskMcpTools
 
   constructor(databaseService: DatabaseService) {
-    this.credentialService = new CredentialService(new SettingsRepository(databaseService))
+    const settingsRepository = new SettingsRepository(databaseService)
+    this.credentialService = new CredentialService(settingsRepository)
     this.todoistApiClient = new TodoistApiClient(this.credentialService)
     this.taskService = new TaskApplicationService(this.todoistApiClient)
     this.dashboardService = new DashboardService(this.taskService)
-    this.settingsService = new SettingsApplicationService(this.credentialService, this.todoistApiClient)
+    this.settingsService = new SettingsApplicationService(this.credentialService, this.todoistApiClient, settingsRepository)
     this.approvalService = new ToolApprovalService()
     this.mcpTools = new TodoistTaskMcpTools(this.taskService, this.approvalService)
   }

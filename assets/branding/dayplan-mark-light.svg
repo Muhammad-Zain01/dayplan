@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="180" viewBox="0 0 192 180" role="img" aria-labelledby="title description">
+  <title id="title">Dayplan sunrise mark</title>
+  <desc id="description">An orange rising sun above a teal horizon.</desc>
+  <circle cx="96" cy="96" r="47" fill="#F58234"/>
+  <rect x="12" y="111" width="168" height="16" rx="8" fill="#348E7C"/>
+</svg>

@@ -1,21 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="surface" x1="140" y1="82" x2="890" y2="946" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2F7A70"/>
-      <stop offset="1" stop-color="#173F4B"/>
-    </linearGradient>
-    <linearGradient id="check" x1="280" y1="522" x2="743" y2="522" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F8FBF9"/>
-      <stop offset="1" stop-color="#DDEFE8"/>
-    </linearGradient>
-    <filter id="shadow" x="171" y="173" width="682" height="678" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
-      <feGaussianBlur stdDeviation="22"/>
-    </filter>
-  </defs>
-  <rect width="1024" height="1024" rx="228" fill="url(#surface)"/>
-  <circle cx="784" cy="246" r="164" fill="#8CC5AE" fill-opacity=".09"/>
-  <circle cx="237" cy="784" r="208" fill="#A6D4C1" fill-opacity=".06"/>
-  <path d="M317 525 452 659 713 387" fill="none" stroke="#103841" stroke-linecap="round" stroke-linejoin="round" stroke-width="112" opacity=".24" filter="url(#shadow)"/>
-  <path d="M317 505 452 639 713 367" fill="none" stroke="url(#check)" stroke-linecap="round" stroke-linejoin="round" stroke-width="92"/>
-  <circle cx="764" cy="747" r="17" fill="#E7C783"/>
+  <rect width="1024" height="1024" rx="228" fill="#F4F6F3"/>
+  <circle cx="512" cy="545" r="218" fill="#F58234"/>
+  <rect x="122" y="615" width="780" height="74" rx="37" fill="#348E7C"/>
 </svg>

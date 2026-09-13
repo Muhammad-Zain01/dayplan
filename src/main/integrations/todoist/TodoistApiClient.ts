@@ -6,6 +6,11 @@ interface Page<T> {
   next_cursor: string | null
 }
 
+interface CompletedTasksPage<T> {
+  items: T[]
+  next_cursor: string | null
+}
+
 export class TodoistApiError extends Error {
   constructor(message: string, readonly statusCode?: number) {
     super(message)
@@ -102,8 +107,8 @@ export class TodoistApiClient {
       url.searchParams.set('until', until)
       url.searchParams.set('limit', '200')
       if (cursor) url.searchParams.set('cursor', cursor)
-      const page = await this.get<Page<TodoistTask>>(url)
-      tasks.push(...page.results)
+      const page = await this.get<CompletedTasksPage<TodoistTask>>(url)
+      tasks.push(...page.items)
       cursor = page.next_cursor
       if (cursor && seenCursors.has(cursor)) throw new TodoistApiError('Todoist returned invalid pagination data.')
       if (cursor) seenCursors.add(cursor)
