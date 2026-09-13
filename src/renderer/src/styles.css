@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-destructive: var(--destructive);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.035), 0 5px 18px rgb(15 23 42 / 0.025);
+}
+
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --background: #f7f8fa;
+  --foreground: #182326;
+  --card: #ffffff;
+  --card-foreground: #182326;
+  --primary: #527f76;
+  --primary-foreground: #ffffff;
+  --secondary: #eff2f2;
+  --secondary-foreground: #334247;
+  --muted: #f1f3f4;
+  --muted-foreground: #7c898d;
+  --accent: #eef3f1;
+  --border: #e7eaeb;
+  --input: #e3e8e9;
+  --destructive: #c94d4d;
+  --sidebar: #f1f4f3;
+  --sidebar-foreground: #1d2a2c;
+  --sidebar-muted: #788585;
+  --sidebar-border: #e4eae8;
+  --sidebar-active: #e2ebe7;
+  --sidebar-active-foreground: #375e56;
+  --sidebar-hover: #e9efed;
+  --chart-grid: #edf0ef;
+  --radius: 0.8rem;
+  background: var(--background);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #151b1c;
+    --foreground: #e9eff0;
+    --card: #1c2425;
+    --card-foreground: #e9eff0;
+    --primary: #82aa9f;
+    --primary-foreground: #15201e;
+    --secondary: #273031;
+    --secondary-foreground: #d7e1e1;
+    --muted: #222b2c;
+    --muted-foreground: #a2adae;
+    --accent: #263131;
+    --border: #2d3839;
+    --input: #344041;
+    --destructive: #dc7373;
+    --sidebar: #192121;
+    --sidebar-foreground: #e4ebeb;
+    --sidebar-muted: #a2adad;
+    --sidebar-border: #2a3434;
+    --sidebar-active: #293736;
+    --sidebar-active-foreground: #b5d0c9;
+    --sidebar-hover: #222d2d;
+    --chart-grid: #344041;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-width: 360px; min-height: 100%; margin: 0; }
+body { min-height: 100vh; background: var(--background); color: var(--foreground); font-size: 14px; }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+::selection { color: #18312c; background: #cde0d9; }
+
+.app-shell { min-height: 100vh; }
+.animate-wave { animation: wave 2.6s ease-in-out infinite; }
+@keyframes wave { 0%, 100% { transform: rotate(0deg); } 15%, 35% { transform: rotate(12deg); } 25%, 45% { transform: rotate(-8deg); } }
+
+@media (max-width: 520px) {
+  .sidebar { width: 58px; }
+  .main-content { margin-left: 58px; }
+}

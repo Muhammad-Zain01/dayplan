@@ -1,75 +1,67 @@
 # DayPlan Architecture
 
-## Product goal
+## Product
 
-DayPlan is a native macOS productivity application for personal use. The first feature area is task planning backed by Todoist. Future features should be modular, AI-callable, and accessible through MCP without making the interface dependent on an AI provider.
+DayPlan is a local-first Electron productivity app for macOS and Windows. Todoist is the first and currently only connected service. The interface, local MCP server, and future AI features use the same application services.
 
-## Runtime and stack
+## Runtime
 
-- macOS desktop application, implemented with SwiftUI.
-- Swift 6 language mode and Swift Package Manager for the initial project scaffold.
-- SQLite through the system SQLite library; no third-party database package.
-- `URLSession` for Todoist and future provider networking.
-- macOS Keychain for API credentials.
-- A separate local MCP stdio helper is implemented in `Sources/DayPlanMCPServer/` and packaged at `Contents/Helpers/dayplan-mcp`; remote MCP and AI-provider connections are not implemented.
+- Electron 44, React 19, TypeScript strict mode, and Vite.
+- shadcn/ui composition built with Radix primitives and Tailwind CSS.
+- SQLite through `better-sqlite3`, isolated behind database and repository classes.
+- Todoist REST API v1 over `fetch`.
+- Electron asynchronous `safeStorage` encrypts the Todoist token before it is persisted as ciphertext in SQLite. macOS uses Keychain-backed protection; Windows uses DPAPI. The renderer only receives configured status.
+- MCP uses the official TypeScript SDK and stdio, launched through a hidden Electron main-process invocation so it shares database, safe storage, and use cases with the GUI.
 
 ## Module boundaries
 
 ```text
-SwiftUI Features
-  ├── Tasks ──> Task use cases / tool-facing service
-  │               ├── Todoist API adapter
-  │               └── SQLite task cache
-  └── Settings ──> Credential service ──> macOS Keychain
-
-The MCP stdio helper and UI call the same task use cases. Future modules add tools to the application tool registry; they must not duplicate business rules or transport code.
+React renderer
+  └── typed preload bridge
+        └── Electron main / IPC controller
+              ├── task, dashboard, settings application services
+              ├── Todoist REST client
+              ├── SQLite settings and data repositories
+              └── MCP transport and tool registry
+                    └── same task application services as UI
 ```
 
-### Application and presentation
+### Renderer and preload
 
-`DayPlanApp` owns the application lifecycle and dependency composition. SwiftUI views are small value types, as required by the framework. State transitions and orchestration belong in reference-type view models/services, not in view bodies.
+React components own view state and interaction only. They call specific methods exposed with `contextBridge`. The renderer has no Node integration and cannot access SQLite, credentials, arbitrary IPC channels, the filesystem, or the shell. Main-process handlers validate their sender and payload.
 
-### Tasks and Todoist
+### Application services and Todoist
 
-Todoist is the source of truth for remote tasks. The integration owns HTTP request construction, authentication headers, response decoding, pagination, and Todoist-specific errors. Task use cases are the shared entry point for UI and future AI/MCP tools. Cached data is disposable and must be refreshable from Todoist.
+`TaskApplicationService` implements task validation and operations. `TodoistApiClient` owns authentication, request construction, cursor pagination, API decoding, and safe errors. UI IPC and MCP tools call the same service. Todoist remains the source of truth; task-list views refresh from the API.
 
-The first API adapter targets Todoist REST API v1 at `https://api.todoist.com/api/v1`. It uses bearer-token authentication and must follow cursor pagination. Task creation supports title, description, project (Inbox by default), due date, and priority through a native task composer. See the [official Todoist API documentation](https://developer.todoist.com/api/v1/).
+The task surface supports list, get, create, partial update, complete, reopen, and delete, plus project and label discovery. Task composition supports Inbox by default, project selection, due date, priority, labels, and description. Dashboard metrics come from active tasks and Todoist completion-history records; the displayed seven-day history is not inferred from a current snapshot.
 
-### Persistence
+### SQLite and secrets
 
-SQLite stores app-owned records, migrations, and any explicitly chosen Todoist cache. It does not become a competing source of truth for tasks. The database belongs under `~/Library/Application Support/DayPlan/`. The persistence module owns directory creation, connection lifecycle, migrations, and SQL access.
+The app opens `dayplan.sqlite3` below Electron's per-user `userData` path and applies ordered migrations. SQLite stores app settings and app-owned data. The initial schema includes settings and migration metadata. The Todoist token is stored only as a versioned ciphertext blob. Electron's asynchronous safe-storage APIs encrypt/decrypt in the main process, and token availability is never inferred by exposing the saved value.
 
-The initial migration creates an `app_preferences` table and a task-cache table. The current task screen fetches directly from Todoist; a repository that reads/writes the cache and provides offline fallback is not implemented yet.
+Each platform protects the encryption key using its own user profile. Copying the database file between macOS and Windows is not a credential migration mechanism; the user enters the token once on each OS. If safe storage is unavailable, saving fails rather than writing plaintext.
 
-### Secrets
+### MCP
 
-Todoist, OpenAI, and Anthropic credentials belong in macOS Keychain. SQLite stores only non-secret app data. Credentials must never appear in logs, diagnostics, test fixtures, source control, command output, or `.env` files. The app should show only whether a credential is configured, not reveal a saved value.
+The MCP server runs with `--mcp` in a hidden Electron process and speaks stdio through the official TypeScript SDK. Its nine tools cover Todoist task list/get/create/update/complete/reopen/delete and project/label discovery. Inputs are schema-validated and bounded. Reads execute directly; writes show a DayPlan confirmation dialog before calling shared task services. Delete approval states that Todoist also deletes subtasks. Diagnostics are sent only to stderr.
 
-### AI tools and MCP
+### Settings
 
-AI providers are separate adapters behind provider-neutral interfaces. The app remains useful without an AI provider. The MCP task catalog exposes list tasks/projects/labels, get task, create, partial update, complete, reopen, and delete. List calls are bounded; task IDs are opaque. Create and update support due dates, priorities, and labels. Omitted update fields remain unchanged, and `due_date: null` clears a date. Todoist remains the source of truth.
+Settings currently contains only the Todoist API token flow, including save, replace, remove, configured status, and a connection test. Add a new control only alongside the feature it configures.
 
-The MCP server speaks newline-delimited JSON-RPC through `MCPStdioServer` and uses the shared `ApplicationToolRegistry` and `TodoistTaskService`. It supports MCP `2026-07-28` stateless requests and older initialize-based revisions over local stdio. Reads run immediately. Every mutation opens a native macOS confirmation dialog showing the tool arguments; deletion also explains that Todoist deletes all subtasks. Tool input is checked against declared schemas and typed decoders. Results include structured content and secret-free errors. Settings can copy a local MCP client configuration fragment without editing another app's files.
+## Data locations
 
-Initialization and tool discovery have been smoke-tested through the executable. This has not yet been verified inside supported third-party hosts, against live Todoist credentials, or with a full protocol conformance suite. The approval UI is currently a modal dialog, not an approval queue.
-
-The repository-root [SKILL.md](SKILL.md) provides the required authoring workflow and current AI-tool catalog; update it whenever a feature becomes AI-callable or an existing tool changes.
-
-Implementation status, release gaps, and the remote-access boundary are tracked in [MCP_IMPLEMENTATION_PLAN.md](MCP_IMPLEMENTATION_PLAN.md).
+Electron chooses a per-user application data directory through `app.getPath('userData')` on both platforms. The database file is `dayplan.sqlite3` within that directory. No `.env` file or plaintext credential file is used.
 
 ## Performance and reliability
 
-- No network request or SQLite query runs synchronously from a SwiftUI view body.
-- Use structured concurrency, cancellation, and explicit loading/error/empty states.
-- Keep list updates incremental and avoid broad observable state invalidation.
-- Bound request timeouts and surface actionable errors without exposing secrets.
-- Persist schema changes through ordered, repeatable migrations.
+- Network and SQLite operations stay outside React render functions.
+- The renderer remains sandboxed and the main event loop is not used for long synchronous work except bounded SQLite queries.
+- Paginated Todoist requests detect repeated cursors and have request timeouts.
+- Screens include loading, empty, and error states. Dashboard metrics show their source and refresh time.
+- Release readiness requires Electron ABI rebuilds, tests, and package verification on macOS and Windows.
 
-## Initial implementation scope
+## Migration tracking
 
-1. Native application shell and navigation.
-2. Settings with Keychain-backed Todoist, OpenAI, and Anthropic credential slots.
-3. SQLite connection, schema versioning, and local app-data location.
-4. Todoist task listing, creation, partial updates, completion, reopening, and deletion through REST API v1.
-5. Local MCP stdio server and task tool catalog over the shared task service.
-6. Build and test instructions for local macOS development.
+The Swift implementation and its tests remain available at the checkpoint recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md). Swift source is removed only after Electron parity and release verification.

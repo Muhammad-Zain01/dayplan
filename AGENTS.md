@@ -1,50 +1,43 @@
-# Agent Instructions
+# DayPlan Agent Instructions
 
-These rules apply to every automated or human contributor working in this repository.
+Read [CODE_STANDARDS.md](CODE_STANDARDS.md) before changing application code. These repository-level requirements apply to all contributors.
 
-## Product constraints
+## Product and platform
 
-- DayPlan is a native macOS application. Use SwiftUI and Apple platform frameworks for the desktop UI; do not replace it with a web wrapper.
-- Keep the architecture modular. Add new work inside a feature or infrastructure module with one clear responsibility.
-- Treat Todoist as the source of truth for tasks. Local SQLite task data is a cache unless a future product decision explicitly says otherwise.
-- Make application use cases reusable from the UI, core code, and future MCP tools. MCP adapters must call the same use cases rather than reimplementing business rules.
-- Do not claim an AI provider, Todoist integration, or MCP capability works until it is actually implemented and verified.
+- DayPlan is an Electron desktop productivity app targeting macOS and Windows.
+- Build the renderer with React, TypeScript, Vite, and the shadcn/ui component approach.
+- Settings currently supports only the Todoist API token. Do not add controls for future or unimplemented integrations.
+- Todoist remains the source of truth for remote tasks. SQLite holds local settings and app-owned data; any task cache must remain refreshable.
+- Keep the preserved Swift baseline at commit `11d3ddd82ea175040c16aa8c6e99d8b364092628` until Electron feature parity and cross-platform verification pass. Do not delete or rewrite Swift files before that release gate.
 
-## Code quality
+## Architecture
 
-- Prefer small, cohesive reference types for services, repositories, coordinators, and view models. SwiftUI `View` declarations remain structs because that is the framework's intended model.
-- Follow single-responsibility and dependency-inversion principles. Depend on protocols at integration boundaries and inject implementations.
-- Avoid duplicated policy, networking, persistence, and credential logic. Put each in its owning service.
-- Use descriptive names, narrow access control, explicit error types, and structured concurrency.
-- Do not use force unwraps, `try!`, silent `catch` blocks, or broad `Any`-based APIs in production code.
-- Keep UI rendering fast. Never block the main actor with network or database work.
+- Keep main process, preload bridge, renderer, shared domain, integrations, persistence, and MCP transport in separate modules.
+- Use small classes for core services, repositories, use cases, APIs, coordinators, and MCP registries. Avoid God classes and duplicated rules.
+- React function components are for presentation. They call narrow typed preload methods; they do not contain application business rules.
+- UI IPC and MCP tools must call the same application service methods.
+- Validate all external input at runtime, including IPC payloads, API responses, and MCP tool arguments.
+- Keep main-process authority narrow and validate each IPC sender. Never expose a generic IPC, filesystem, shell, database, or arbitrary network API to the renderer.
 
-## Data and secrets
+## Storage and credentials
 
-- Store application-owned persistent data in SQLite under the user's Application Support directory.
-- Store API tokens and keys in macOS Keychain only. Never use `.env` files or put secrets in SQLite, source files, fixtures, logs, screenshots, or Git history.
-- Never print, return, or display a saved credential. Display configured/not-configured status instead.
-- Use parameterized SQL statements. Add schema changes as ordered migrations.
-- Redact authorization headers and credential-bearing request details from errors and diagnostics.
+- Keep the SQLite file under Electron's per-user `app.getPath('userData')` directory. Create ordered, repeatable migrations and parameterized queries.
+- Store the Todoist token only as encrypted ciphertext in SQLite. Use asynchronous Electron `safeStorage` in the main process, backed by macOS Keychain or Windows DPAPI. Refuse to save if secure encryption is unavailable; never fall back to plaintext.
+- Do not store a raw environment-variable dump or introduce `.env` files for runtime credentials. The initial user-entered secret is the Todoist token in Settings.
+- Never return a saved token to the renderer or put credentials in MCP arguments, environment variables, logs, errors, or source control.
 
-## AI and MCP
+## MCP
 
-- Read `SKILL.md` when adding or changing any AI-callable capability. Update its tool catalog and descriptions as part of the same change.
-- Treat model output as untrusted input. Validate it against typed input models before executing a use case.
-- Expose narrow tools with clear descriptions and input schemas. Do not give a model unrestricted database, shell, or filesystem access.
-- Require user approval before destructive task operations or bulk changes.
-- Keep AI-provider implementations replaceable; avoid tying task-domain logic to one vendor.
-- Keep MCP transport and tool registration separate from the task application services.
-- The local MCP stdio endpoint is the `DayPlanMCPServer` helper target; it must call `ApplicationToolRegistry` and shared task use cases.
-- Every MCP write must receive a DayPlan native confirmation before registry execution. MCP client approval hints are never authorization.
-- Keep MCP stdout protocol-only. Send diagnostics to stderr, and keep credentials out of the JSON-RPC boundary.
-- Update `SKILL.md`, `MCP_IMPLEMENTATION_PLAN.md`, `ARCHITECTURE.md`, and `README.md` whenever callable tools or MCP setup change.
+- Use the official TypeScript MCP SDK and keep stdio output protocol-only.
+- Reuse task application services from the UI. Writes require explicit DayPlan approval and must fail closed if approval is denied or unavailable.
+- Deletion must explain that Todoist also deletes subtasks. MCP annotations never substitute for application-controlled approval.
+- Update `SKILL.md`, MCP documentation, and architecture/tool inventory whenever a callable feature or tool changes.
 
-## Verification workflow
+## Verification and documentation
 
-- Run `swift build` after code changes and `swift test` when tests exist or behavior changes warrant them.
-- Keep Swift code formatted with `swift format format --configuration .swift-format --recursive --in-place Sources Tests` and check it with `swift format lint --configuration .swift-format --recursive --strict Sources Tests`.
-- Run the app with `swift run DayPlan` for local UI verification.
-- Add focused tests for persistence migrations, API decoding, credential status, and use-case behavior. Never use real credentials in tests.
-- Update `README.md` and `ARCHITECTURE.md` when setup commands, module responsibilities, storage policy, or integration status changes.
-- Before committing, inspect `git diff` and `git status`; do not commit or push unless requested.
+- Run `npm run typecheck`, `npm test`, and `npm run build` after meaningful changes.
+- Test persistence with temporary databases, integration clients with fake fetch responses, and MCP tools without production credentials.
+- Rebuild native dependencies for Electron and verify packaged builds on both macOS and Windows using CI.
+- Keep source formatted and dead code removed. Avoid comments that merely repeat the code.
+- Update `README.md`, `ARCHITECTURE.md`, `CODE_STANDARDS.md`, and `ELECTRON_MIGRATION_PLAN.md` when platform setup, boundaries, security, or storage behavior changes.
+- Never commit or push unless the user asks.

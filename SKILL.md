@@ -5,61 +5,57 @@ description: Add, change, review, or document DayPlan AI/MCP tools and module ca
 
 # DayPlan AI and MCP Tool Authoring
 
-Use this repository skill whenever a DayPlan feature is made callable by an AI model, a tool is added or changed, or an agent updates the MCP plan/catalog. Read `AGENTS.md`, `ARCHITECTURE.md`, and `MCP_IMPLEMENTATION_PLAN.md` first.
+Read `AGENTS.md`, `ARCHITECTURE.md`, and `MCP_IMPLEMENTATION_PLAN.md` before changing tool behavior. The Electron main process owns credentials, networking, approvals, MCP stdio, and the shared application services. React must call narrow preload APIs and never implement Todoist or MCP policy itself.
 
-## Current implementation status
+## Current implementation
 
-DayPlan has an application tool registry in `Sources/DayPlan/AI/Tools/` and a separate stdio MCP command target in `Sources/DayPlanMCPServer/`. Its transport implementation is shared from `Sources/DayPlan/AI/MCP/`. It supports `2026-07-28` stateless `server/discover` and per-request metadata, as well as older initialize-based JSON-RPC revisions. The packaged helper is `Contents/Helpers/dayplan-mcp`; source checkouts can use `swift run DayPlanMCPServer`. Discovery and tool listing have been smoke-tested; no third-party host has been verified. Do not describe it as a remote ChatGPT connector or an AI model connection.
+The local MCP helper is started with `DayPlan --mcp` and communicates over stdio using the official TypeScript MCP SDK. It composes the same `TaskApplicationService`, `TodoistApiClient`, encrypted SQLite-backed credential repository, and approval service used by the desktop UI. Tool output and errors must never contain the Todoist token or local credential data. The helper must not write logs or banners to stdout.
 
-The task feature uses `TaskOperating` as the shared use-case boundary. The UI and tools must call those same use cases; do not duplicate Todoist networking or business rules inside a tool.
+Task writes require an explicit native DayPlan approval dialog. Denial returns an MCP error and does not invoke the task use case. Delete confirmation states that Todoist also deletes subtasks. MCP annotations describe tool behavior but are not authorization; the approval service is the enforcement boundary.
 
-## Current application tools
+## Tool catalog
 
-| Name | Description for an AI caller | Input | Access |
-| --- | --- | --- | --- |
-| `todoist_list_tasks` | List up to 100 active tasks; optionally filter by project ID. | Optional `limit` (1–100, default 100) and `project_id`. | Read-only. |
-| `todoist_list_projects` | List active Todoist projects, including Inbox, so a project can be selected by ID. | No arguments. | Read-only. |
-| `todoist_list_labels` | List existing Todoist labels so requested labels can be resolved by name. | No arguments. | Read-only. |
-| `todoist_get_task` | Get one active task using its exact opaque ID. | Required `task_id`. | Read-only. |
-| `todoist_create_task` | Create one task. Without `project_id`, it goes to Inbox. `due_date` is `YYYY-MM-DD`. API priority is `1` for P4/normal through `4` for P1/urgent. | Required `content`; optional `description`, `project_id`, `due_date`, `priority` (`1...4`), and existing label names. | Native DayPlan confirmation required. |
-| `todoist_update_task` | Update supplied fields; omitted fields remain unchanged. Pass `due_date: null` to clear the date. | Required `task_id`, plus at least one of `content`, `description`, `due_date`, `priority`, or `labels`. | Native DayPlan confirmation required. |
-| `todoist_complete_task` | Mark one active task complete. | Required `task_id`. | Native DayPlan confirmation required. |
-| `todoist_reopen_task` | Reopen one completed task. | Required `task_id`. | Native DayPlan confirmation required. |
-| `todoist_delete_task` | Permanently delete one task and all its subtasks. | Required `task_id`. | Separate native confirmation that states the subtask consequence. |
+| Tool | Description and inputs | Access |
+| --- | --- | --- |
+| `todoist_list_tasks` | List up to 100 active tasks; optional `limit` (1–100, default 100) and exact `project_id`. | Read-only. |
+| `todoist_get_task` | Get an active task using its exact opaque `task_id`; discover IDs with `todoist_list_tasks`. | Read-only. |
+| `todoist_list_projects` | List projects, including Inbox, so the caller can resolve project names to IDs. | Read-only. |
+| `todoist_list_labels` | List label names for exact-name selection. | Read-only. |
+| `todoist_create_task` | Create one task with required `content`; optional `description`, `project_id`, `due_date` (`YYYY-MM-DD`), `priority` (Todoist 1–4), and existing label names. Omitted project means Inbox. | DayPlan approval required. |
+| `todoist_update_task` | Patch one task by `task_id`; provide one or more of `content`, `description`, `due_date`, `priority`, or `labels`. Omitted fields remain unchanged; `due_date: null` clears the date. | DayPlan approval required. |
+| `todoist_complete_task` | Complete one active task by exact `task_id`. | DayPlan approval required. |
+| `todoist_reopen_task` | Reopen one completed task by exact `task_id`. | DayPlan approval required. |
+| `todoist_delete_task` | Permanently delete one task by exact `task_id`; Todoist also deletes its subtasks. | Explicit DayPlan approval required. |
 
-Create and update inputs use the Todoist REST API v1 model. In the UI, display priorities as P1 Urgent, P2 High, P3 Medium, and P4 Normal; map them to the API values in the table above. Omitting `project_id` means Inbox. These tools use Todoist due dates, not the separate deadline or reminder APIs. The stdio process reads the app's Keychain entry and never accepts credentials through MCP arguments or environment variables.
+Todoist priority values map as follows: API `4` = P1 Urgent, `3` = P2 High, `2` = P3 Medium, `1` = P4 Normal. Do not invent IDs, project names, or labels; discover them first. These tools use the Todoist task due date and do not create deadlines or reminders.
 
 ## Required workflow for every tool or feature change
 
-1. Define or update a typed use case in the owning module. Keep API-specific details in that integration adapter.
-2. Define a narrow, stable tool name and a plain-language description that tells the model what it does, when to use it, required IDs/inputs, defaults, and side effects. Do not rely on the name alone.
-3. Keep the input schema, typed decoder, validation, and output structure aligned. Reject invalid values and unknown properties at the protocol boundary; validate again in the application service.
-4. Assign a risk class. Reads must not mutate data. Writes must follow the explicit approval policy in `AGENTS.md` and `MCP_IMPLEMENTATION_PLAN.md`. Destructive and bulk operations require explicit, consequence-specific confirmation.
-5. Register the tool through `ApplicationToolRegistry` and expose that same specification and use case through `MCPStdioServer`; never create a parallel implementation.
-6. Add/update focused tests for schema validity, tool descriptions, input validation, use-case invocation, approval enforcement, and secret-free results/errors.
-7. Update this `SKILL.md` tool catalog with the exact new or changed name, description, inputs/defaults, and access policy. Update the MCP implementation plan and architecture/README if the capability status or setup instructions change.
-8. Verify the tool through its actual transport. Do not claim third-party host compatibility until a host successfully discovers and calls it.
+1. Add or change the typed use case in the owning module. Keep API and protocol details in their adapters.
+2. Define a stable `module_action` name, bounded input schema, output schema, clear description, and accurate read/write/destructive annotations.
+3. Reject unknown properties and malformed values at the MCP boundary, then validate business rules again in the application service.
+4. Route every mutation through the DayPlan approval service before calling a use case. Fail closed if approval is denied, unavailable, or fails. For destructive changes, describe the specific consequence.
+5. Register the tool in its module catalog and compose it through the central MCP server; do not duplicate use cases or Todoist HTTP logic.
+6. Add tests for catalog registration, schema/validation behavior, use-case invocation, approval denial, approved mutation, and secret-free output.
+7. Update this catalog, `MCP_IMPLEMENTATION_PLAN.md`, and architecture/setup documentation when behavior or status changes.
+8. Test through the actual stdio transport before claiming host compatibility. Unit tests alone do not establish that a host can connect.
 
-## Description-writing rules
+## Future module pattern
 
-- Use direct language and one behavior per tool.
-- State when the model should use the tool and what identifier it needs; instruct it to discover opaque IDs instead of guessing them.
-- State meaningful defaults, units, accepted value ranges, date formats, and Todoist-specific priority mapping.
-- State side effects clearly. A delete description must say whether related tasks are also deleted.
-- Never claim unsupported fields, remote behavior, or MCP connectivity.
-- Keep read tools read-only and minimize returned task data.
+Each module should own its application services and provide a focused MCP tool catalog to the central server. Add the UI and app use cases first, define narrow module-prefixed tools, classify each operation's risk, and cover it with unit and transport tests. Keep settings limited to integrations that actually exist. Never expose general shell execution, unrestricted filesystem access, arbitrary network access, or secrets through MCP.
 
 ## Security and reliability
 
-- Treat model-produced arguments as untrusted. Decode into typed inputs and validate before invoking the use case.
-- Never expose tokens, Keychain contents, local file paths, unrestricted shell/filesystem access, or arbitrary network access as tools.
-- Do not place credentials in tool arguments, schemas, output, logs, or test fixtures.
-- Keep non-protocol diagnostics off stdout from the stdio MCP server; use stderr.
-- Preserve cancellation and surface actionable, secret-free errors.
-- Keep Todoist as the source of truth. SQLite task records are only a cache.
+- Treat all model-provided arguments as untrusted; validate and bound them.
+- Keep Todoist credentials encrypted in SQLite through Electron `safeStorage`; do not pass tokens through MCP inputs, environment variables, arguments, logs, or outputs.
+- Keep approval in the DayPlan main process. Protocol annotations and host confirmation prompts do not replace DayPlan approval.
+- Keep diagnostics on stderr and protocol frames on stdout only.
+- Do not claim ChatGPT/Claude host integration until that host has successfully discovered and invoked the local helper.
+- Preserve cancellation and return actionable errors that do not expose credentials, database paths, or internal stack traces.
 
 ## References
 
 - Todoist REST API v1: <https://developer.todoist.com/api/v1/>
-- MCP tool specification: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools>
+- Official TypeScript MCP SDK: <https://ts.sdk.modelcontextprotocol.io/v2/>
+- MCP tools specification: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools>
 - Full DayPlan MCP roadmap: `MCP_IMPLEMENTATION_PLAN.md`

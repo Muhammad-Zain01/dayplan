@@ -1,65 +1,76 @@
 # DayPlan
 
-DayPlan is a native macOS productivity app, starting with a Todoist-backed task module. The app is designed for personal local use, with AI and MCP capabilities added through clear, modular boundaries.
+DayPlan is a local-first desktop productivity app for macOS and Windows. It connects to Todoist and provides a redesigned task workspace, daily dashboard, and an MCP server that gives AI hosts access to the same user-approved task operations.
 
-## Project principles
+## Current features
 
-- Build a native macOS interface with SwiftUI.
-- Keep network and database work off the UI's critical path.
-- Use Todoist as the source of truth for tasks.
-- Keep app-owned data in SQLite under the user's Application Support directory.
-- Store API credentials in macOS Keychain. Never put secrets in source, SQLite, logs, or `.env` files.
-- Make application capabilities callable through a shared service layer so the UI, core code, and future MCP tools use the same behavior.
+- Dashboard with Todoist open-task, due-today, overdue, completed-today, priority, and seven-day completion summaries.
+- Today and Tasks views with search, create, edit, complete, reopen, and delete actions.
+- Task creation with Inbox as the default project, project selection, due date, priority, description, and labels.
+- Settings for the Todoist API token only, with save/replace/remove and connection test.
+- Nine local MCP tools for Todoist task CRUD, task status changes, and project/label discovery. Every MCP write asks for approval in DayPlan.
+- SQLite local settings and app data; the Todoist token is encrypted with Electron safe storage before it is saved.
 
-## Current status
+The Electron migration is in progress. The preserved Swift baseline remains at the commit recorded in [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md) until cross-platform feature parity is verified.
 
-The app provides a native macOS shell, local SQLite setup, Keychain credential storage, and a Todoist task module. Its local MCP stdio endpoint supports task/project/label reads and task create, update, complete, reopen, and delete. Every write opens a native approval dialog; deletion explains that subtasks will also be deleted. MCP uses the same task service and Keychain service as the UI. This is a local MCP server, not an AI model connection or a remote ChatGPT connector.
+## Requirements
 
-## Build and run locally
+- Node.js 24 or later and npm.
+- macOS or Windows for local desktop execution. Native modules must be installed/rebuilt on the target operating system.
 
-Requirements: macOS and Xcode with the Swift command-line tools selected.
-
-```sh
-swift build
-./Scripts/package-app.sh
-open .build/DayPlan.app
-```
-
-The packaging script builds a local `.app` bundle with a DayPlan icon so macOS shows it in the Dock and app switcher. Re-run the script after code changes, then open the refreshed bundle. Open `Package.swift` in Xcode to use its editor, previews where available, and debugger. Run the test suite with:
+## Run locally
 
 ```sh
-swift test
+npm install
+npm run dev
 ```
 
-## Connect a local MCP client
+Run checks:
 
-Build the app bundle, then add the following server entry to a compatible local MCP client's configuration. Replace the executable path with the path where you installed `DayPlan.app`:
+```sh
+npm run typecheck
+npm test
+npm run build
+```
+
+Package on the current OS:
+
+```sh
+npm run build
+npx electron-builder --mac dmg
+npx electron-builder --win nsis
+```
+
+The package for each operating system is built on that OS. GitHub Actions will build and upload both installers from the release workflow.
+
+## Connect an MCP host
+
+Build DayPlan, then use its Electron executable as the stdio server command with `--mcp`:
 
 ```json
 {
   "mcpServers": {
     "dayplan": {
-      "command": "/Applications/DayPlan.app/Contents/Helpers/dayplan-mcp"
+      "command": "/path/to/DayPlan",
+      "args": ["--mcp"]
     }
   }
 }
 ```
 
-The server uses newline-delimited JSON-RPC over stdin/stdout and supports MCP `2026-07-28` stateless requests plus older initialize-based revisions. Keep stdout reserved for MCP messages. In Settings, **Copy Claude Desktop configuration** copies a configuration fragment using the current app executable path; paste it into the host yourself. The server reads the `com.dayplan.app` credential from macOS Keychain. It does not need API keys in arguments or environment variables. DayPlan asks for confirmation separately for every write.
+On macOS, the executable is inside `DayPlan.app/Contents/MacOS/DayPlan`. On Windows, use the installed `DayPlan.exe`. MCP setup details and host verification are still being completed.
 
-Use `swift run DayPlanMCPServer` in a source checkout, or the bundled `Contents/Helpers/dayplan-mcp` executable for a stable installed path. Discovery and tool listing have been smoke-tested. Host-specific setup and live Todoist calls still need manual verification.
+## Local data and privacy
 
-The app's local database is created at:
+DayPlan creates `dayplan.sqlite3` under Electron's per-user `userData` directory. The Todoist token is encrypted in the main process with Electron's asynchronous safe-storage API before it enters SQLite. If OS-protected encryption is not available, DayPlan refuses to save the token. The database is per device/account; re-enter the token in Settings on each OS.
 
-```text
-~/Library/Application Support/DayPlan/dayplan.sqlite3
-```
+The app does not read or persist an environment-variable dump and does not require a `.env` file for runtime credentials.
 
-Credentials are stored in the macOS Keychain and are not stored in this database.
-
-## Repository documents
+## Project documents
 
 - [Architecture](ARCHITECTURE.md)
+- [Code standards](CODE_STANDARDS.md)
+- [Electron migration plan](ELECTRON_MIGRATION_PLAN.md)
 - [MCP implementation plan](MCP_IMPLEMENTATION_PLAN.md)
 - [AI/MCP tool authoring skill](SKILL.md)
 - [Agent instructions](AGENTS.md)

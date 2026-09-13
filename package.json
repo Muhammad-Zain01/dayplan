@@ -1,0 +1,84 @@
+{
+  "name": "dayplan",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A local-first, AI-native desktop productivity app for macOS and Windows.",
+  "author": { "name": "Muhammad Zain" },
+  "main": "./out/main/index.js",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package:mac": "npm run build && electron-builder --mac dmg -c.mac.identity=- -c.mac.hardenedRuntime=false",
+    "package:mac:ci": "npm run build && electron-builder --mac dmg -c.mac.identity=null -c.mac.hardenedRuntime=false",
+    "package:win": "npm run build && electron-builder --win nsis",
+    "package": "npm run build && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "better-sqlite3": "^12.4.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.554.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.4.1",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "44.3.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2",
+    "vitest": "^4.0.8"
+  },
+  "build": {
+    "appId": "com.muhammadzain.dayplan",
+    "productName": "DayPlan",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "npmRebuild": true,
+    "mac": {
+      "identity": null,
+      "hardenedRuntime": false,
+      "icon": "build/icon.svg",
+      "category": "public.app-category.productivity",
+      "target": ["dmg"]
+    },
+    "win": {
+      "icon": "build/icon.svg",
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

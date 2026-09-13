@@ -3,3 +3,10 @@
 DerivedData/
 *.xcuserstate
 .DS_Store
+node_modules/
+out/
+release/
+coverage/
+.env
+.env.*
+!.env.example
