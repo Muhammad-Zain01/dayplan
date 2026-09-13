@@ -1,12 +1,12 @@
-# DayPlan Agent Instructions
+# Dayplan Agent Instructions
 
 Read [CODE_STANDARDS.md](CODE_STANDARDS.md) before changing application code. These repository-level requirements apply to all contributors.
 
 ## Product and platform
 
-- DayPlan is an Electron desktop productivity app targeting macOS and Windows.
+- Dayplan is an Electron desktop productivity app targeting macOS and Windows.
 - Build the renderer with React, TypeScript, Vite, and the shadcn/ui component approach.
-- Settings currently supports only the Todoist API token. Do not add controls for future or unimplemented integrations.
+- Settings supports the Todoist API token and a persisted System/Light/Dark appearance choice. Do not add controls for future or unimplemented integrations.
 - Todoist remains the source of truth for remote tasks. SQLite holds local settings and app-owned data; any task cache must remain refreshable.
 - Verify Windows packaging before declaring the app ready for cross-platform release.
 
@@ -22,14 +22,14 @@ Read [CODE_STANDARDS.md](CODE_STANDARDS.md) before changing application code. Th
 ## Storage and credentials
 
 - Keep the SQLite file under Electron's per-user `app.getPath('userData')` directory. Create ordered, repeatable migrations and parameterized queries.
-- Store the Todoist token only as encrypted ciphertext in SQLite. Use asynchronous Electron `safeStorage` in the main process, backed by macOS Keychain or Windows DPAPI. Refuse to save if secure encryption is unavailable; never fall back to plaintext.
+- Store the Todoist token directly in the SQLite `settings` table as plain text at rest. Do not add a second credential store or encryption layer.
 - Do not store a raw environment-variable dump or introduce `.env` files for runtime credentials. The initial user-entered secret is the Todoist token in Settings.
-- Never return a saved token to the renderer or put credentials in MCP arguments, environment variables, logs, errors, or source control.
+- Do not return a saved token to the renderer or put credentials in MCP arguments, environment variables, logs, errors, or source control.
 
 ## MCP
 
 - Use the official TypeScript MCP SDK and keep stdio output protocol-only.
-- Reuse task application services from the UI. Writes require explicit DayPlan approval and must fail closed if approval is denied or unavailable.
+- Reuse task application services from the UI. Writes require explicit Dayplan approval and must fail closed if approval is denied or unavailable.
 - Deletion must explain that Todoist also deletes subtasks. MCP annotations never substitute for application-controlled approval.
 - Update `SKILL.md`, MCP documentation, and architecture/tool inventory whenever a callable feature or tool changes.
 

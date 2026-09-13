@@ -1,4 +1,4 @@
-# DayPlan Code Standards
+# Dayplan Code Standards
 
 These rules apply to the Electron application, shared services, MCP server, tests, and automation.
 
@@ -33,9 +33,9 @@ These rules apply to the Electron application, shared services, MCP server, test
 ## Data, secrets, and Todoist
 
 - Store app settings and local app-owned data in SQLite under the operating system's per-user application-data directory. Use parameterized SQL and ordered migrations.
-- Store the Todoist token only as authenticated ciphertext in SQLite. Encrypt and decrypt it in the Electron main process using Electron `safeStorage` async APIs backed by the platform's protected storage. Never persist plaintext tokens, encryption keys, or general environment-variable dumps.
-- If secure storage is unavailable, refuse to save or use the token and show a clear Settings error. Never silently fall back to plaintext.
-- Settings initially contains only the Todoist API token field, save/remove actions, and configured status. Add other settings only when their corresponding product feature exists.
+- Store the Todoist token directly in the SQLite `settings` table as UTF-8 bytes and leave it plain text at rest. Do not add a second credential store or encryption layer.
+- Keep the token inside the main-process credential service after saving. Do not log it, return the saved value to the renderer, or include it in MCP arguments, environment variables, or source control.
+- Settings provides Todoist token management and a locally persisted System/Light/Dark appearance choice. Add other settings only when their corresponding product feature exists.
 - Treat Todoist as the source of truth for tasks. Local task data, if cached, must be refreshable and must not imply an offline write succeeded remotely.
 - Keep HTTP construction, pagination, authentication, response parsing, and Todoist errors inside the Todoist integration module.
 - Redact credentials and sensitive request details from all errors and diagnostics.
@@ -45,7 +45,7 @@ These rules apply to the Electron application, shared services, MCP server, test
 - Implement MCP transport separately from module tools and shared application services.
 - Give every tool a stable name, concise description, typed input/output schema, runtime validation, bounded behavior, and explicit risk classification.
 - Use the same task use cases as the UI. Keep protocol metadata separate from business rules.
-- Require DayPlan-owned approval for every mutation. Fail closed if approval cannot be displayed or received; a host's approval hints do not grant authorization.
+- Require Dayplan-owned approval for every mutation. Fail closed if approval cannot be displayed or received; a host's approval hints do not grant authorization.
 - Keep MCP stdout limited to protocol output; send safe diagnostics to stderr.
 - Never expose credentials, unrestricted shell, arbitrary filesystem access, SQL execution, or unrestricted network requests as tools.
 - Update `SKILL.md`, MCP documentation, and the tool catalog whenever an AI-callable feature changes.

@@ -1,8 +1,8 @@
-# DayPlan Architecture
+# Dayplan Architecture
 
 ## Product
 
-DayPlan is a local-first Electron productivity app for macOS and Windows. Todoist is the first and currently only connected service. The interface, local MCP server, and future AI features use the same application services.
+Dayplan is a local-first Electron productivity app for macOS and Windows. Todoist is the first and currently only connected service. The interface, local MCP server, and future AI features use the same application services.
 
 ## Runtime
 
@@ -10,7 +10,7 @@ DayPlan is a local-first Electron productivity app for macOS and Windows. Todois
 - shadcn/ui composition built with Radix primitives and Tailwind CSS.
 - SQLite through `better-sqlite3`, isolated behind database and repository classes.
 - Todoist REST API v1 over `fetch`.
-- Electron asynchronous `safeStorage` encrypts the Todoist token before it is persisted as ciphertext in SQLite. macOS uses Keychain-backed protection; Windows uses DPAPI. The renderer only receives configured status.
+- The Todoist token is stored directly in the SQLite `settings` table. Credential reads and writes stay in the main-process service; the renderer receives configured status only.
 - MCP uses the official TypeScript SDK and stdio, launched through a hidden Electron main-process invocation so it shares database, safe storage, and use cases with the GUI.
 
 ## Module boundaries
@@ -38,17 +38,15 @@ The task surface supports list, get, create, partial update, complete, reopen, a
 
 ### SQLite and secrets
 
-The app opens `dayplan.sqlite3` below Electron's per-user `userData` path and applies ordered migrations. SQLite stores app settings and app-owned data. The initial schema includes settings and migration metadata. The Todoist token is stored only as a versioned ciphertext blob. Electron's asynchronous safe-storage APIs encrypt/decrypt in the main process, and token availability is never inferred by exposing the saved value.
-
-Each platform protects the encryption key using its own user profile. Copying the database file between macOS and Windows is not a credential migration mechanism; the user enters the token once on each OS. If safe storage is unavailable, saving fails rather than writing plaintext.
+The app opens `dayplan.sqlite3` below Electron's per-user `userData` path and applies ordered migrations. SQLite stores app settings and app-owned data, including the selected appearance mode and the Todoist token. The token is stored directly as UTF-8 bytes in the `settings` table; it is plain text at rest in the local database. Credential reads and writes stay in the main process, and the renderer receives configured status rather than the saved value. Legacy ciphertext values from earlier builds are treated as unconfigured; entering and saving the token again replaces the old value.
 
 ### MCP
 
-The MCP server runs with `--mcp` in a hidden Electron process and speaks stdio through the official TypeScript SDK. Its nine tools cover Todoist task list/get/create/update/complete/reopen/delete and project/label discovery. Inputs are schema-validated and bounded. Reads execute directly; writes show a DayPlan confirmation dialog before calling shared task services. Delete approval states that Todoist also deletes subtasks. Diagnostics are sent only to stderr.
+The MCP server runs with `--mcp` in a hidden Electron process and speaks stdio through the official TypeScript SDK. Its nine tools cover Todoist task list/get/create/update/complete/reopen/delete and project/label discovery. Inputs are schema-validated and bounded. Reads execute directly; writes show a Dayplan confirmation dialog before calling shared task services. Delete approval states that Todoist also deletes subtasks. Diagnostics are sent only to stderr.
 
 ### Settings
 
-Settings currently contains only the Todoist API token flow, including save, replace, remove, configured status, and a connection test. Add a new control only alongside the feature it configures.
+Settings provides System, Light, and Dark appearance choices stored locally, plus the Todoist API token flow, including save, replace, remove, configured status, and a connection test. The renderer applies the selected mode immediately and follows operating-system changes while System is selected.
 
 ## Data locations
 
