@@ -9,7 +9,7 @@ Dayplan is a local-first desktop productivity app for macOS and Windows. It conn
 - Task creation with Inbox as the default project, project selection, due date, priority, description, and labels.
 - Settings for the System/Light/Dark appearance and Todoist API token, with save/replace/remove and connection test.
 - Nine local MCP tools for Todoist task CRUD, task status changes, and project/label discovery. Every MCP write asks for approval in Dayplan.
-- SQLite local settings and app data; the Todoist token is encrypted with Electron safe storage before it is saved.
+- SQLite local settings and app data, including the Todoist token.
 
 Windows packaging and release validation are still pending.
 
@@ -62,7 +62,7 @@ On macOS, the executable is inside `Dayplan.app/Contents/MacOS/Dayplan`. On Wind
 
 ## Local data and privacy
 
-Dayplan creates `dayplan.sqlite3` under Electron's per-user `userData` directory. The Todoist token is encrypted in the main process with Electron's asynchronous safe-storage API before it enters SQLite. If OS-protected encryption is not available, Dayplan refuses to save the token. The database is per device/account; re-enter the token in Settings on each OS.
+Dayplan creates `dayplan.sqlite3` under Electron's per-user `userData` directory. The Todoist token is stored directly in the SQLite `settings` table as plain text at rest. Credential reads and writes stay in the main process, and the saved token is not returned to the renderer. The database is per device/account; enter the token in Settings on each OS.
 
 The app does not read or persist an environment-variable dump and does not require a `.env` file for runtime credentials.
 

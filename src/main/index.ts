@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { McpServer } from '@modelcontextprotocol/server'
@@ -8,7 +9,12 @@ import { AppServices } from './AppServices'
 import { IpcController } from './ipc/IpcController'
 
 const isMcpProcess = process.argv.includes('--mcp')
-app.setName('Dayplan')
+// Keep the existing application-data directory so local settings and tasks remain in place.
+app.setName('DayPlan')
+// Preserve existing settings and credentials when the displayed product name changes.
+const userDataPath = join(app.getPath('appData'), 'DayPlan')
+mkdirSync(userDataPath, { recursive: true })
+app.setPath('userData', userDataPath)
 let databaseService: DatabaseService | null = null
 let mainWindow: BrowserWindow | null = null
 
@@ -20,7 +26,7 @@ async function startApplication(): Promise<void> {
   if (isMcpProcess) {
     if (process.platform === 'darwin') app.dock?.hide()
     serveStdio(() => {
-      const server = new McpServer({ name: 'dayplan', version: app.getVersion() })
+      const server = new McpServer({ name: 'Dayplan', version: app.getVersion() })
       services.mcpTools.register(server)
       return server
     }, {

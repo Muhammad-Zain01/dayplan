@@ -9,7 +9,7 @@ Read `AGENTS.md`, `ARCHITECTURE.md`, and `MCP_IMPLEMENTATION_PLAN.md` before cha
 
 ## Current implementation
 
-The local MCP helper is started with `Dayplan --mcp` and communicates over stdio using the official TypeScript MCP SDK. It composes the same `TaskApplicationService`, `TodoistApiClient`, encrypted SQLite-backed credential repository, and approval service used by the desktop UI. Tool output and errors must never contain the Todoist token or local credential data. The helper must not write logs or banners to stdout.
+The local MCP helper is started with `Dayplan --mcp` and communicates over stdio using the official TypeScript MCP SDK. It composes the same `TaskApplicationService`, `TodoistApiClient`, SQLite-backed credential repository, and approval service used by the desktop UI. Tool output and errors must never contain the Todoist token or local credential data. The helper must not write logs or banners to stdout.
 
 Task writes require an explicit native Dayplan approval dialog. Denial returns an MCP error and does not invoke the task use case. Delete confirmation states that Todoist also deletes subtasks. MCP annotations describe tool behavior but are not authorization; the approval service is the enforcement boundary.
 
@@ -47,7 +47,7 @@ Each module should own its application services and provide a focused MCP tool c
 ## Security and reliability
 
 - Treat all model-provided arguments as untrusted; validate and bound them.
-- Keep Todoist credentials encrypted in SQLite through Electron `safeStorage`; do not pass tokens through MCP inputs, environment variables, arguments, logs, or outputs.
+- Store the Todoist token directly in the SQLite settings table; do not pass tokens through MCP inputs, environment variables, arguments, logs, or outputs.
 - Keep approval in the Dayplan main process. Protocol annotations and host confirmation prompts do not replace Dayplan approval.
 - Keep diagnostics on stderr and protocol frames on stdout only.
 - Do not claim ChatGPT/Claude host integration until that host has successfully discovered and invoked the local helper.

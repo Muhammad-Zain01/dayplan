@@ -1,18 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="460" viewBox="0 0 1080 460" role="img" aria-labelledby="title description">
   <title id="title">Dayplan light and dark logo versions</title>
   <desc id="description">The sunrise and horizon Dayplan logo displayed on light and dark background samples.</desc>
+  <defs>
+    <clipPath id="preview-sun-light" clipPathUnits="userSpaceOnUse"><rect x="0" y="0" width="192" height="111"/></clipPath>
+    <clipPath id="preview-sun-dark" clipPathUnits="userSpaceOnUse"><rect x="0" y="0" width="192" height="111"/></clipPath>
+  </defs>
   <rect width="1080" height="460" rx="28" fill="#E8ECEA"/>
   <rect x="24" y="24" width="504" height="412" rx="20" fill="#FFFFFF"/>
   <rect x="552" y="24" width="504" height="412" rx="20" fill="#1D2326"/>
   <text x="60" y="82" fill="#66716D" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650" letter-spacing="2">LIGHT MODE</text>
   <g transform="translate(78 156) scale(0.9)" aria-hidden="true">
-    <circle cx="96" cy="96" r="47" fill="#F58234"/>
+    <circle cx="96" cy="96" r="47" fill="#F58234" clip-path="url(#preview-sun-light)"/>
     <rect x="12" y="111" width="168" height="16" rx="8" fill="#348E7C"/>
   </g>
   <text x="260" y="270" fill="#242B2E" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="68" font-weight="650" letter-spacing="-2">Dayplan</text>
   <text x="588" y="82" fill="#AAB5B1" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650" letter-spacing="2">DARK MODE</text>
   <g transform="translate(606 156) scale(0.9)" aria-hidden="true">
-    <circle cx="96" cy="96" r="47" fill="#FF994D"/>
+    <circle cx="96" cy="96" r="47" fill="#FF994D" clip-path="url(#preview-sun-dark)"/>
     <rect x="12" y="111" width="168" height="16" rx="8" fill="#51AA98"/>
   </g>
   <text x="788" y="270" fill="#F3F6F5" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="68" font-weight="650" letter-spacing="-2">Dayplan</text>

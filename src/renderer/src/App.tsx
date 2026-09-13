@@ -161,7 +161,6 @@ export default function App() {
             <img src={dayplanLogoLight} alt="Dayplan" className="h-12 w-[190px] object-contain object-left dark:hidden" />
             <img src={dayplanLogoDark} alt="Dayplan" className="hidden h-12 w-[190px] object-contain object-left dark:block" />
           </div>
-          <div className="ml-[57px] -mt-1 text-[11px] text-sidebar-muted max-[760px]:hidden">Personal workspace</div>
           <div className="hidden max-[760px]:block">
             <img src={dayplanMarkLight} alt="Dayplan" className="h-11 w-11 dark:hidden" />
             <img src={dayplanMarkDark} alt="Dayplan" className="hidden h-11 w-11 dark:block" />
@@ -178,9 +177,6 @@ export default function App() {
             </button>
           })}
         </nav>
-
-        <div className="mt-8 px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-muted max-[760px]:hidden">Your space</div>
-        <div className="flex h-10 items-center gap-3 rounded-xl px-3 text-[13px] text-sidebar-muted max-[760px]:w-11 max-[760px]:justify-center max-[760px]:px-0" title={configured ? 'Todoist connected' : 'Todoist not connected'}><span className={`h-2 w-2 rounded-full ${configured ? 'bg-emerald-400' : 'bg-slate-500'}`} /><span className="max-[760px]:hidden">Todoist</span></div>
 
         <div className="mt-auto grid gap-2">
           <button onClick={() => navigate('settings')} title="Settings" className={`flex h-10 items-center gap-3 rounded-xl px-3 text-[13px] font-medium transition max-[760px]:w-11 max-[760px]:justify-center max-[760px]:px-0 ${section === 'settings' ? 'bg-sidebar-active text-sidebar-active-foreground' : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground'}`}>
@@ -328,7 +324,7 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
 
   async function save(): Promise<void> {
     setSaving(true); setError(null); setStatus(null)
-    try { await window.dayplan.saveTodoistToken(token); setToken(''); setStatus('Todoist token saved securely on this device.'); onSaved() }
+    try { await window.dayplan.saveTodoistToken(token); setToken(''); setStatus('Todoist token saved on this device.'); onSaved() }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The token could not be saved.') }
     finally { setSaving(false) }
   }
@@ -380,21 +376,20 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
         <div className="mt-3 rounded-xl border border-border/70 bg-muted/25 p-4 sm:p-5">
           <label htmlFor="todoist-token" className="mb-2 block text-xs font-semibold">Todoist API token</label>
           <div className="flex flex-col gap-2 sm:flex-row"><Input id="todoist-token" type="password" autoComplete="off" placeholder={configured ? 'Paste a new token to replace the saved one' : 'Paste your API token'} value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && token.trim()) void save() }} /><Button disabled={saving || !token.trim()} onClick={() => void save()}>{saving ? <LoaderCircle size={15} className="animate-spin" /> : null}{saving ? 'Saving…' : configured ? 'Replace token' : 'Save token'}</Button></div>
-          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Find the token in Todoist → Settings → Integrations → Developer. It is encrypted before being stored in your local SQLite database.</p>
+          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Find the token in Todoist → Settings → Integrations → Developer. It is saved in this app’s local SQLite settings.</p>
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
             <Button size="sm" variant="secondary" disabled={!configured || testing} onClick={() => void testConnection()}>{testing ? <LoaderCircle size={14} className="animate-spin" /> : <ShieldCheck size={14} />}{testing ? 'Checking…' : 'Test connection'}</Button>
             {configured && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => void removeToken()}><LogOut size={14} />Remove token</Button>}
           </div>
         </div>
         {(status || error) && <div role={error ? 'alert' : 'status'} className={`mt-4 rounded-xl px-3 py-2.5 text-xs ${error ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'}`}>{error ?? status}</div>}
-        <div className="mt-5 flex items-start gap-2 rounded-xl bg-muted/40 p-3 text-[11px] leading-5 text-muted-foreground"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" /><span>Dayplan encrypts your token with the operating system’s protected storage before saving it. The renderer never receives the saved token.</span></div>
       </CardContent>
     </Card>
   </>
 }
 
 function ConnectTodoist({ onOpenSettings }: { onOpenSettings: () => void }) {
-  return <div className="mx-auto flex min-h-[65vh] max-w-lg flex-col items-center justify-center text-center"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e6f0ed] text-[#4b8277] dark:bg-[#263a35] dark:text-[#a9cfc2]"><FolderKanban size={25} /></div><Badge className="mb-4 border-primary/15 bg-primary/5 text-primary">First, connect Todoist</Badge><h1 className="text-3xl font-semibold tracking-[-0.04em]">Your day, in one place.</h1><p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Connect your Todoist account and Dayplan will bring your tasks, priorities, and due dates into a calmer workspace.</p><Button className="mt-6" onClick={onOpenSettings}><Plus size={15} />Connect Todoist</Button><div className="mt-5 flex items-center gap-1.5 text-[11px] text-muted-foreground"><ShieldCheck size={13} className="text-emerald-600" />Your API token is encrypted and stored locally</div></div>
+  return <div className="mx-auto flex min-h-[65vh] max-w-lg flex-col items-center justify-center text-center"><div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e6f0ed] text-[#4b8277] dark:bg-[#263a35] dark:text-[#a9cfc2]"><FolderKanban size={25} /></div><Badge className="mb-4 border-primary/15 bg-primary/5 text-primary">First, connect Todoist</Badge><h1 className="text-3xl font-semibold tracking-[-0.04em]">Your day, in one place.</h1><p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Connect your Todoist account and Dayplan will bring your tasks, priorities, and due dates into a calmer workspace.</p><Button className="mt-6" onClick={onOpenSettings}><Plus size={15} />Connect Todoist</Button></div>
 }
 
 function EmptyState({ icon: Icon, title, description, action }: { icon: typeof CircleHelp; title: string; description: string; action?: () => void }) {

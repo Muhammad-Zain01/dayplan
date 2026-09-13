@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="sun-cap" clipPathUnits="userSpaceOnUse"><rect x="0" y="0" width="1024" height="615"/></clipPath>
+  </defs>
   <rect width="1024" height="1024" rx="228" fill="#F4F6F3"/>
-  <circle cx="512" cy="545" r="218" fill="#F58234"/>
+  <circle cx="512" cy="545" r="218" fill="#F58234" clip-path="url(#sun-cap)"/>
   <rect x="122" y="615" width="780" height="74" rx="37" fill="#348E7C"/>
 </svg>
