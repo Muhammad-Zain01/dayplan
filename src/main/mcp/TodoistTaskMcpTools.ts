@@ -58,7 +58,7 @@ export class TodoistTaskMcpTools {
     }, async () => this.result({ labels: await this.taskService.listLabels() }))
 
     server.registerTool('todoist_create_task', {
-      description: 'Create one task in Todoist. If project_id is omitted, Todoist places it in Inbox. Requires DayPlan approval.',
+      description: 'Create one task in Todoist. If project_id is omitted, Todoist places it in Inbox. Requires Dayplan approval.',
       inputSchema: z.object({
         content: z.string().trim().min(1).max(500),
         description: z.string().max(5000).optional(),
@@ -72,7 +72,7 @@ export class TodoistTaskMcpTools {
     }, async (input) => this.mutate('todoist_create_task', input, () => this.taskService.createTask(input as TaskDraft)))
 
     server.registerTool('todoist_update_task', {
-      description: 'Update only supplied fields on one active Todoist task. Set due_date to null to clear its due date. Requires DayPlan approval.',
+      description: 'Update only supplied fields on one active Todoist task. Set due_date to null to clear its due date. Requires Dayplan approval.',
       inputSchema: z.object({
         task_id: z.string().min(1).max(128),
         content: z.string().trim().min(1).max(500).optional(),
@@ -86,21 +86,21 @@ export class TodoistTaskMcpTools {
     }, async ({ task_id, ...patch }) => this.mutate('todoist_update_task', { task_id, ...patch }, () => this.taskService.updateTask(task_id, patch as TaskPatch)))
 
     server.registerTool('todoist_complete_task', {
-      description: 'Complete one active Todoist task. Requires DayPlan approval.',
+      description: 'Complete one active Todoist task. Requires Dayplan approval.',
       inputSchema: TaskIdSchema,
       outputSchema: z.object({ completed: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     }, async ({ task_id }) => this.mutate('todoist_complete_task', { task_id }, () => this.taskService.completeTask(task_id)))
 
     server.registerTool('todoist_reopen_task', {
-      description: 'Reopen one completed Todoist task by ID. Requires DayPlan approval.',
+      description: 'Reopen one completed Todoist task by ID. Requires Dayplan approval.',
       inputSchema: TaskIdSchema,
       outputSchema: z.object({ reopened: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     }, async ({ task_id }) => this.mutate('todoist_reopen_task', { task_id }, () => this.taskService.reopenTask(task_id)))
 
     server.registerTool('todoist_delete_task', {
-      description: 'Permanently delete one task and all of its subtasks. Requires explicit DayPlan approval.',
+      description: 'Permanently delete one task and all of its subtasks. Requires explicit Dayplan approval.',
       inputSchema: TaskIdSchema,
       outputSchema: z.object({ deleted: z.literal(true), subtasks_also_deleted: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },

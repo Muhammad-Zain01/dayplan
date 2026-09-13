@@ -55,7 +55,7 @@
   },
   "build": {
     "appId": "com.muhammadzain.dayplan",
-    "productName": "DayPlan",
+    "productName": "Dayplan",
     "directories": {
       "output": "release"
     },

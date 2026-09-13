@@ -5,7 +5,7 @@ export class ToolApprovalService {
     const isDelete = toolName === 'todoist_delete_task'
     const result = await dialog.showMessageBox({
       type: isDelete ? 'warning' : 'question',
-      title: 'DayPlan MCP request',
+      title: 'Dayplan MCP request',
       message: this.messageFor(toolName),
       detail: `${JSON.stringify(argumentsValue, null, 2)}${isDelete ? '\n\nTodoist will also delete all subtasks.' : ''}`,
       buttons: [isDelete ? 'Delete task' : 'Approve', 'Deny'],
