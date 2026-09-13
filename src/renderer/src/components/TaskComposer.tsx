@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { CalendarDays, Check, ChevronDown, Flag, Folder, LoaderCircle, Plus, Tag } from 'lucide-react'
-import type { TaskDraft, TaskPatch, TodoistLabel, TodoistProject, TodoistTask } from '../../../shared/domain'
+import { CalendarDays, Check, Flag, LoaderCircle, Plus, Tag } from 'lucide-react'
+import type { TaskDraft, TaskPatch, TodoistLabel, TodoistTask } from '../../../shared/domain'
+import { DatePicker } from './DatePicker'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog'
 import { Input, Textarea } from './ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectItemText, SelectLabel, SelectTrigger, SelectValue } from './ui/select'
 
 interface TaskComposerProps {
   open: boolean
@@ -13,39 +15,38 @@ interface TaskComposerProps {
 }
 
 const priorityOptions = [
-  { value: 4, label: 'P1 · Urgent', color: 'text-rose-600' },
-  { value: 3, label: 'P2 · High', color: 'text-orange-500' },
-  { value: 2, label: 'P3 · Medium', color: 'text-blue-500' },
-  { value: 1, label: 'P4 · Normal', color: 'text-muted-foreground' },
+  { value: 4, label: 'P1 · Urgent', detail: 'Highest priority', color: 'text-rose-600 dark:text-rose-400', surface: 'bg-rose-50 dark:bg-rose-950/40', hex: '#e5484d' },
+  { value: 3, label: 'P2 · High', detail: 'High priority', color: 'text-orange-600 dark:text-orange-400', surface: 'bg-orange-50 dark:bg-orange-950/40', hex: '#f97316' },
+  { value: 2, label: 'P3 · Medium', detail: 'Normal priority', color: 'text-blue-600 dark:text-blue-400', surface: 'bg-blue-50 dark:bg-blue-950/40', hex: '#3b82f6' },
+  { value: 1, label: 'P4 · Normal', detail: 'Lowest priority', color: 'text-slate-500 dark:text-slate-400', surface: 'bg-slate-100 dark:bg-slate-800', hex: '#94a3b8' },
 ]
 
+function localTodayKey(): string {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
 export function TaskComposer({ open, task, onOpenChange, onSave }: TaskComposerProps) {
-  const [projects, setProjects] = useState<TodoistProject[]>([])
   const [labels, setLabels] = useState<TodoistLabel[]>([])
   const [content, setContent] = useState('')
   const [description, setDescription] = useState('')
-  const [projectId, setProjectId] = useState('inbox')
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState(1)
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
+  const selectedPriority = priorityOptions.find((option) => option.value === priority) ?? priorityOptions[3]
   useEffect(() => {
     if (!open) return
     setContent(task?.content ?? '')
     setDescription(task?.description ?? '')
-    setProjectId(task?.project_id ?? 'inbox')
-    setDueDate(task?.due?.date ?? '')
+    setDueDate(task?.due?.date ?? (task ? '' : localTodayKey()))
     setPriority(task?.priority ?? 1)
     setSelectedLabels(task?.labels ?? [])
     setError(null)
-    void Promise.all([window.dayplan.listProjects(), window.dayplan.listLabels()])
-      .then(([projectItems, labelItems]) => {
-        setProjects(projectItems)
-        setLabels(labelItems)
-      })
-      .catch(() => setError('Projects or labels could not load. You can still create a task in Inbox.'))
+    void window.dayplan.listLabels()
+      .then(setLabels)
+      .catch(() => setError('Labels could not load. You can still create the task.'))
   }, [open, task])
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -63,7 +64,7 @@ export function TaskComposer({ open, task, onOpenChange, onSave }: TaskComposerP
       if (task) {
         await onSave(common satisfies TaskPatch, task.id)
       } else {
-        await onSave({ ...common, ...(projectId === 'inbox' ? {} : { project_id: projectId }) } satisfies TaskDraft)
+        await onSave(common satisfies TaskDraft)
       }
       onOpenChange(false)
     } catch (caught) {
@@ -92,31 +93,39 @@ export function TaskComposer({ open, task, onOpenChange, onSave }: TaskComposerP
             </label>
             <label className="grid gap-2 text-sm font-medium">
               Description <span className="font-normal text-muted-foreground">Optional</span>
-              <Textarea maxLength={5000} placeholder="Add a little more detail…" value={description} onChange={(event) => setDescription(event.target.value)} />
+            <Textarea maxLength={5000} placeholder="Add a little more detail…" value={description} onChange={(event) => setDescription(event.target.value)} />
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
-              {!task && <label className="grid gap-2 text-sm font-medium">
-                <span className="flex items-center gap-2"><Folder size={15} className="text-muted-foreground" />Project</span>
-                <div className="relative">
-                  <select className="h-10 w-full appearance-none rounded-xl border border-input bg-background px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-primary/35" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-                    <option value="inbox">Inbox</option>
-                    {projects.filter((project) => !project.is_inbox_project).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                  </select>
-                  <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3 text-muted-foreground" />
-                </div>
-              </label>}
               <label className="grid gap-2 text-sm font-medium">
                 <span className="flex items-center gap-2"><CalendarDays size={15} className="text-muted-foreground" />Due date</span>
-                <Input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                <DatePicker value={dueDate} onChange={setDueDate} />
               </label>
-              <label className="grid gap-2 text-sm font-medium">
+              <label htmlFor="task-priority" className="grid gap-2 text-sm font-medium">
                 <span className="flex items-center gap-2"><Flag size={15} className="text-muted-foreground" />Priority</span>
-                <div className="relative">
-                  <select className="h-10 w-full appearance-none rounded-xl border border-input bg-background px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-primary/35" value={priority} onChange={(event) => setPriority(Number(event.target.value))}>
-                    {priorityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                  <ChevronDown size={15} className="pointer-events-none absolute right-3 top-3 text-muted-foreground" />
-                </div>
+                <Select value={String(priority)} onValueChange={(value) => setPriority(Number(value))}>
+                  <SelectTrigger id="task-priority" aria-label="Priority">
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <Flag size={16} className={selectedPriority.color} fill={selectedPriority.hex} fillOpacity={0.12} />
+                      <SelectValue />
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    <SelectGroup>
+                      <SelectLabel>Set priority</SelectLabel>
+                      {priorityOptions.map((option) => (
+                        <SelectItem key={option.value} value={String(option.value)}>
+                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${option.surface}`}>
+                            <Flag size={14} className={option.color} fill={option.hex} fillOpacity={0.14} />
+                          </span>
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <SelectItemText>{option.label}</SelectItemText>
+                            <span className="text-[10px] leading-none text-muted-foreground">{option.detail}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </label>
             </div>
             {labels.length > 0 && <div className="grid gap-2 text-sm font-medium">

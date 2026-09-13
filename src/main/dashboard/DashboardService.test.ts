@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardService } from './DashboardService'
 import type { TodoistTask } from '../../shared/domain'
 
 describe('DashboardService', () => {
-  it('calculates open-task, due-today, overdue, and completion history from Todoist data', async () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('calculates dashboard metrics and 30-day completion history from Todoist data', async () => {
+    vi.useFakeTimers()
     const now = new Date()
+    vi.setSystemTime(now)
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString().slice(0, 10)
     const tasks: TodoistTask[] = [
@@ -25,7 +29,12 @@ describe('DashboardService', () => {
     expect(result.dueToday).toBe(1)
     expect(result.overdue).toBe(1)
     expect(result.completedToday).toBe(1)
-    expect(result.priorityCounts).toEqual(expect.arrayContaining([{ priority: 4, count: 1 }, { priority: 3, count: 1 }]))
+    expect(taskService.listCompletedTasks).toHaveBeenCalledWith(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29).toISOString(),
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString(),
+    )
+    expect(result.recentCompletions).toHaveLength(30)
     expect(result.recentCompletions.reduce((sum, entry) => sum + entry.count, 0)).toBe(1)
+    expect(Number.isNaN(new Date(result.refreshedAt).getTime())).toBe(false)
   })
 })

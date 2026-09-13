@@ -1,8 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BarChart3, CalendarDays, Check, CheckCircle2, ChevronRight, CircleHelp, Clock3,
+  CalendarDays, Check, CheckCircle2, CircleHelp, Clock3,
   FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Moon, Monitor, Plus, Search, Settings2,
-  ShieldCheck, Sparkles, Sun, Target, TriangleAlert,
+  ShieldCheck, Sun, Target, TriangleAlert,
 } from 'lucide-react'
 import type { AppearanceMode, AppSection, DashboardMetrics, TaskDraft, TaskPatch, TodoistTask } from '../../shared/domain'
 import dayplanLogoDark from '../../../assets/branding/dayplan-logo-dark.svg'
@@ -10,13 +10,12 @@ import dayplanLogoLight from '../../../assets/branding/dayplan-logo-light.svg'
 import dayplanMarkDark from '../../../assets/branding/dayplan-mark-dark.svg'
 import dayplanMarkLight from '../../../assets/branding/dayplan-mark-light.svg'
 import { TaskComposer } from './components/TaskComposer'
+import DashboardCompletionChart from './components/DashboardCompletionChart'
 import { TaskRow } from './components/TaskRow'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Input } from './components/ui/input'
-
-const DashboardCompletionChart = lazy(() => import('./components/DashboardCompletionChart'))
 
 const navigation: Array<{ id: AppSection; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -29,12 +28,20 @@ const todayKey = (): string => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+const dateKeyOffset = (days: number): string => {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export default function App() {
   const [section, setSection] = useState<AppSection>('dashboard')
   const [configured, setConfigured] = useState(false)
   const [tasks, setTasks] = useState<TodoistTask[]>([])
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [showCompletedTasks, setShowCompletedTasks] = useState(false)
+  const [showCompletedToday, setShowCompletedToday] = useState(false)
+  const [taskDateFilter, setTaskDateFilter] = useState<string | null>(todayKey)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [appearance, setAppearance] = useState<AppearanceMode>('system')
@@ -75,7 +82,16 @@ export default function App() {
         return
       }
       if (target === 'dashboard') setMetrics(await window.dayplan.getDashboardMetrics())
-      if (target === 'today') setTasks(await window.dayplan.listTasks())
+      if (target === 'today') {
+        if (showCompletedToday) {
+          const now = new Date()
+          const since = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const until = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+          setTasks(await window.dayplan.listCompletedTasks(since.toISOString(), until.toISOString()))
+        } else {
+          setTasks(await window.dayplan.listTasks())
+        }
+      }
       if (target === 'tasks') {
         if (showCompletedTasks) {
           const until = new Date()
@@ -90,7 +106,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [section, showCompletedTasks])
+  }, [section, showCompletedTasks, showCompletedToday])
 
   useEffect(() => { void refresh(section) }, [refresh, section])
 
@@ -107,13 +123,15 @@ export default function App() {
     const query = search.trim().toLocaleLowerCase()
     const filtered = tasks.filter((task) => {
       if (section === 'today') {
+        if (showCompletedToday) return !query || `${task.content} ${task.description} ${task.labels.join(' ')}`.toLocaleLowerCase().includes(query)
         const due = task.due?.date
         if (!due || due > todayKey()) return false
       }
+      if (section === 'tasks' && taskDateFilter && task.due?.date !== taskDateFilter) return false
       return !query || `${task.content} ${task.description} ${task.labels.join(' ')}`.toLocaleLowerCase().includes(query)
     })
     return filtered
-  }, [section, search, showCompletedTasks, tasks])
+  }, [section, search, showCompletedToday, taskDateFilter, tasks])
 
   async function saveTask(draft: TaskDraft | TaskPatch, taskId?: string): Promise<void> {
     if (taskId) await window.dayplan.updateTask(taskId, draft as TaskPatch)
@@ -150,6 +168,7 @@ export default function App() {
 
   function navigate(target: AppSection): void {
     setSearch('')
+    if (target === 'today') setShowCompletedToday(false)
     setSection(target)
   }
 
@@ -190,16 +209,9 @@ export default function App() {
       </aside>
 
       <main className="main-content ml-[236px] min-h-screen max-[760px]:ml-[72px]">
-        <header className="sticky top-0 z-10 flex h-[66px] items-center justify-between border-b border-border/70 bg-background/85 px-8 backdrop-blur-xl max-[760px]:px-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>Workspace</span><ChevronRight size={13} /><span className="font-medium text-foreground">{navigation.find((item) => item.id === section)?.label ?? 'Settings'}</span></div>
-          <div className="flex items-center gap-2">
-            {section !== 'settings' && <Button size="sm" onClick={openCreateTask}><Plus size={15} />New task</Button>}
-          </div>
-        </header>
-
         <div className="mx-auto w-full max-w-[1440px] px-8 py-8 max-[760px]:px-4 max-[760px]:py-5">
           {error && <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"><span className="flex items-center gap-2"><TriangleAlert size={16} />{error}</span><Button size="sm" variant="outline" onClick={() => void refresh(section)}>Try again</Button></div>}
-          {!configured && section !== 'settings' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} loading={loading} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'settings' ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={showCompletedTasks} onShowCompleted={setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
+          {!configured && section !== 'settings' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} loading={loading} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'settings' ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={section === 'today' ? showCompletedToday : showCompletedTasks} taskDateFilter={taskDateFilter} onTaskDateChange={setTaskDateFilter} onShowCompleted={section === 'today' ? setShowCompletedToday : setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
         </div>
       </main>
 
@@ -216,6 +228,7 @@ function DashboardPage({ metrics, loading, onCreate, onEdit, onComplete, onReope
   metrics: DashboardMetrics | null; loading: boolean; onCreate: () => void; onEdit: (task: TodoistTask) => void
   onComplete: (task: TodoistTask) => Promise<void>; onReopen: (task: TodoistTask) => Promise<void>; onDelete: (task: TodoistTask) => Promise<void>
 }) {
+  const [completionRange, setCompletionRange] = useState<7 | 30>(7)
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
   const dateText = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
@@ -233,41 +246,23 @@ function DashboardPage({ metrics, loading, onCreate, onEdit, onComplete, onReope
       <MetricCard title="Completed today" value={metrics?.completedToday} caption="Small steps add up" icon={CheckCircle2} tint="green" loading={loading} />
     </div>
 
-    <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(310px,0.85fr)]">
-      <div className="grid content-start gap-5">
-        <Card>
-          <CardHeader><div><CardTitle>Weekly rhythm</CardTitle><p className="mt-1 text-xs text-muted-foreground">Tasks you completed over the last seven days</p></div><Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />Todoist live</Badge></CardHeader>
-          <CardContent><Suspense fallback={<div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" size={16} />Preparing your week…</div>}><DashboardCompletionChart metrics={metrics} loading={loading} /></Suspense><div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground"><ShieldCheck size={13} className="text-emerald-600" />History comes directly from Todoist completion records.</div></CardContent>
-        </Card>
+    <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+      <Card>
+        <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle>{completionRange === 7 ? 'Weekly rhythm' : 'Monthly rhythm'}</CardTitle><p className="mt-1 text-xs text-muted-foreground">Tasks completed in the last {completionRange} days</p></div><div role="group" aria-label="Completion chart date range" className="inline-flex shrink-0 rounded-lg border border-border bg-muted/45 p-0.5">{([7, 30] as const).map((days) => <button key={days} type="button" aria-pressed={completionRange === days} onClick={() => setCompletionRange(days)} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${completionRange === days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{days} days</button>)}</div></CardHeader>
+        <CardContent>
+          <DashboardCompletionChart metrics={metrics} loading={loading} days={completionRange} />
+          <div className="flex items-center gap-2 border-t border-border/60 pt-3 text-[11px] text-muted-foreground"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Completion history comes directly from Todoist.</div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader><div><CardTitle>Priority overview</CardTitle><p className="mt-1 text-xs text-muted-foreground">Where your open tasks are concentrated</p></div><BarChart3 size={16} className="text-muted-foreground" /></CardHeader>
-          <CardContent><div className="grid gap-4 sm:grid-cols-4">{[4, 3, 2, 1].map((priority) => {
-            const count = metrics?.priorityCounts.find((item) => item.priority === priority)?.count ?? 0
-            const total = Math.max(metrics?.openTasks ?? 0, 1)
-            const color = priority === 4 ? 'bg-rose-500' : priority === 3 ? 'bg-orange-400' : priority === 2 ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'
-            return <div key={priority}><div className="mb-2 flex justify-between text-xs"><span className="font-medium">P{5 - priority}</span><span className="text-muted-foreground">{loading ? '—' : count}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${loading ? 0 : (count / total) * 100}%` }} /></div></div>
-          })}</div></CardContent>
-        </Card>
-      </div>
-
-      <div className="grid content-start gap-5">
-        <Card>
-          <CardHeader><div><CardTitle>Coming up</CardTitle><p className="mt-1 text-xs text-muted-foreground">Your next few dated tasks</p></div><button className="text-xs font-medium text-primary hover:underline" onClick={() => window.dispatchEvent(new CustomEvent('dayplan:navigate', { detail: 'tasks' }))}>View all</button></CardHeader>
-          <CardContent>
-            {loading ? <div className="flex justify-center py-12"><LoaderCircle className="animate-spin text-muted-foreground" size={18} /></div> : metrics?.upcoming.length ? <div className="-mx-2">{metrics.upcoming.slice(0, 5).map((task) => <TaskRow key={task.id} task={task} onComplete={onComplete} onReopen={onReopen} onEdit={onEdit} onDelete={onDelete} />)}</div> : <EmptyState icon={CalendarDays} title="Nothing on the horizon" description="Add a due date to a task and it will show up here." action={onCreate} />}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-0 bg-[#e9f0ed] dark:bg-[#202e2d]">
-          <CardContent className="relative p-5">
-            <div className="absolute -right-4 -top-5 h-24 w-24 rounded-full border-[14px] border-[#d8e5df] dark:border-[#2b3b39]" />
-            <div className="relative"><div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white/75 text-[#46756b] dark:bg-white/10 dark:text-[#a7c8bd]"><Sparkles size={18} /></div><h3 className="text-sm font-semibold">A little progress counts</h3><p className="mt-1.5 max-w-[250px] text-xs leading-5 text-[#627b73] dark:text-[#b0c6bf]">You have completed <strong>{metrics?.completedToday ?? '—'}</strong> tasks today. Keep your focus on the next small step.</p></div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader><div><CardTitle>Coming up</CardTitle><p className="mt-1 text-xs text-muted-foreground">Your next few dated tasks</p></div><button className="text-xs font-medium text-primary hover:underline" onClick={() => window.dispatchEvent(new CustomEvent('dayplan:navigate', { detail: 'tasks' }))}>View all</button></CardHeader>
+        <CardContent>
+          {loading ? <div className="flex justify-center py-12"><LoaderCircle className="animate-spin text-muted-foreground" size={18} /></div> : metrics?.upcoming.length ? <div className="-mx-2">{metrics.upcoming.slice(0, 5).map((task) => <TaskRow key={task.id} task={task} onComplete={onComplete} onReopen={onReopen} onEdit={onEdit} onDelete={onDelete} />)}</div> : <EmptyState icon={CalendarDays} title="Nothing on the horizon" description="Add a due date to a task and it will show up here." action={onCreate} />}
+        </CardContent>
+      </Card>
     </div>
-    <div className="mt-5 flex justify-end text-[10px] text-muted-foreground">{metrics?.refreshedAt ? `Updated ${new Date(metrics.refreshedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Waiting for Todoist'}</div>
+    <div className="mt-3 flex justify-end text-[10px] text-muted-foreground">{metrics?.refreshedAt ? `Updated ${new Date(metrics.refreshedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Waiting for Todoist'}</div>
   </>
 }
 
@@ -276,18 +271,19 @@ function MetricCard({ title, value, caption, icon: Icon, tint, loading }: { titl
   return <Card className="min-w-0"><CardContent className="p-4 sm:p-5"><div className="flex items-center justify-between gap-2"><div className="truncate text-xs font-medium text-muted-foreground">{title}</div><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tones[tint]}`}><Icon size={16} /></div></div><div className="mt-3 text-[27px] font-semibold leading-none tracking-[-0.04em]">{loading ? <span className="inline-block h-7 w-10 animate-pulse rounded bg-muted align-middle" /> : value ?? 0}</div><div className="mt-2 truncate text-[10px] text-muted-foreground sm:text-[11px]">{caption}</div></CardContent></Card>
 }
 
-function TaskPage({ section, tasks, loading, search, showCompleted, onShowCompleted, onSearch, onCreate, onEdit, onComplete, onReopen, onDelete }: {
-  section: AppSection; tasks: TodoistTask[]; loading: boolean; search: string; showCompleted: boolean; onShowCompleted: (value: boolean) => void; onSearch: (value: string) => void; onCreate: () => void
+function TaskPage({ section, tasks, loading, search, showCompleted, taskDateFilter, onTaskDateChange, onShowCompleted, onSearch, onCreate, onEdit, onComplete, onReopen, onDelete }: {
+  section: AppSection; tasks: TodoistTask[]; loading: boolean; search: string; showCompleted: boolean; taskDateFilter: string | null; onTaskDateChange: (value: string | null) => void; onShowCompleted: (value: boolean) => void; onSearch: (value: string) => void; onCreate: () => void
   onEdit: (task: TodoistTask) => void; onComplete: (task: TodoistTask) => Promise<void>; onReopen: (task: TodoistTask) => Promise<void>; onDelete: (task: TodoistTask) => Promise<void>
 }) {
   const isToday = section === 'today'
-  const done = tasks.filter((task) => task.is_completed).length
+  const listTitle = isToday ? showCompleted ? 'Today completed' : 'Today todos' : showCompleted ? 'Recently completed' : 'Todoist tasks'
+  const countDescription = loading ? 'Syncing with Todoist…' : isToday ? showCompleted ? `${tasks.length} tasks completed today` : `${tasks.length} tasks due today or earlier` : showCompleted ? `${tasks.length} completed in the last 90 days` : `${tasks.length} active tasks`
   return <>
     <PageHeading eyebrow={isToday ? 'Your day' : 'Task manager'} title={isToday ? 'Today' : 'All tasks'} description={isToday ? 'A calm, focused view of what is due today and what is already behind.' : 'Keep every task, next step, and small detail in one place.'} />
     <Card>
-      <CardHeader className="flex-wrap items-center"><div><CardTitle>{isToday ? 'Today’s list' : showCompleted ? 'Recently completed' : 'Todoist tasks'}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{loading ? 'Syncing with Todoist…' : isToday ? `${tasks.length} tasks due today or earlier` : showCompleted ? `${tasks.length} completed in the last 90 days` : `${tasks.length} active tasks`}</p></div><div className="flex w-full flex-wrap gap-2 sm:w-auto">{!isToday && <div className="flex rounded-lg border border-border bg-muted/40 p-0.5"><button className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium ${!showCompleted ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onShowCompleted(false)}>Active</button><button className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium ${showCompleted ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onShowCompleted(true)}>Completed</button></div>}<div className="flex min-w-0 flex-1 gap-2 sm:w-auto"><div className="relative flex-1 sm:w-56"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search tasks" className="h-9 pl-9" placeholder="Search tasks" value={search} onChange={(event) => onSearch(event.target.value)} /></div>{!showCompleted && <Button size="sm" onClick={onCreate}><Plus size={14} />Add</Button>}</div></div></CardHeader>
+      <CardHeader className="flex-wrap items-center"><div><CardTitle>{listTitle}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{countDescription}</p></div><div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">{<div role="group" aria-label={isToday ? 'Today task status' : 'Task status'} className="flex rounded-lg border border-border bg-muted/40 p-0.5"><button type="button" aria-pressed={!showCompleted} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium ${!showCompleted ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onShowCompleted(false)}>{isToday ? 'Today todos' : 'Active'}</button><button type="button" aria-pressed={showCompleted} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium ${showCompleted ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onShowCompleted(true)}>{isToday ? 'Today completed' : 'Completed'}</button></div>}{!isToday && <><div role="group" aria-label="Filter tasks by due date" className="flex rounded-lg border border-border bg-muted/40 p-0.5"><button type="button" aria-pressed={taskDateFilter === todayKey()} className={`rounded-md px-2 py-1.5 text-[11px] font-medium ${taskDateFilter === todayKey() ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onTaskDateChange(todayKey())}>Today</button><button type="button" aria-pressed={taskDateFilter === dateKeyOffset(1)} className={`rounded-md px-2 py-1.5 text-[11px] font-medium ${taskDateFilter === dateKeyOffset(1) ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onTaskDateChange(dateKeyOffset(1))}>Tomorrow</button><button type="button" aria-pressed={taskDateFilter === null} className={`rounded-md px-2 py-1.5 text-[11px] font-medium ${taskDateFilter === null ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`} onClick={() => onTaskDateChange(null)}>All dates</button></div><Input type="date" aria-label="Choose due date" className="h-9 w-[145px] px-2 text-xs" value={taskDateFilter ?? ''} onChange={(event) => onTaskDateChange(event.target.value || null)} /></>}<div className="flex min-w-0 flex-1 gap-2 sm:w-auto"><div className="relative flex-1 sm:w-56"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground" /><Input aria-label="Search tasks" className="h-9 pl-9" placeholder="Search tasks" value={search} onChange={(event) => onSearch(event.target.value)} /></div>{!showCompleted && <Button size="sm" onClick={onCreate}><Plus size={14} />Add</Button>}</div></div></CardHeader>
       <CardContent>
-        {loading ? <div className="flex justify-center py-16 text-sm text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" size={16} />Loading tasks from Todoist…</div> : tasks.length ? <div className="divide-y divide-border/60">{tasks.map((task) => <TaskRow key={task.id} task={task} onComplete={onComplete} onReopen={onReopen} onEdit={onEdit} onDelete={onDelete} />)}</div> : <EmptyState icon={isToday ? CalendarDays : ListTodo} title={search ? 'No matching tasks' : isToday ? 'A little breathing room' : 'Your list is clear'} description={search ? 'Try a different search.' : isToday ? 'No tasks are due today. You have room to plan ahead.' : 'Create a task when something needs your attention.'} action={search ? undefined : onCreate} />}
+        {loading ? <div className="flex justify-center py-16 text-sm text-muted-foreground"><LoaderCircle className="mr-2 animate-spin" size={16} />Loading tasks from Todoist…</div> : tasks.length ? <div className="divide-y divide-border/60">{tasks.map((task) => <TaskRow key={task.id} task={task} onComplete={onComplete} onReopen={onReopen} onEdit={onEdit} onDelete={onDelete} />)}</div> : <EmptyState icon={isToday ? showCompleted ? CheckCircle2 : CalendarDays : ListTodo} title={search ? 'No matching tasks' : isToday ? showCompleted ? 'Nothing completed today' : 'A little breathing room' : 'Your list is clear'} description={search ? 'Try a different search.' : isToday ? showCompleted ? 'Tasks you complete today will appear here.' : 'No tasks are due today. You have room to plan ahead.' : 'Create a task when something needs your attention.'} action={search || (isToday && showCompleted) ? undefined : onCreate} />}
       </CardContent>
     </Card>
   </>
@@ -373,14 +369,12 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
     <Card className="max-w-[760px]">
       <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300"><CheckCircle2 size={15} /></span>Todoist connection</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Connect your Todoist account to sync tasks, projects, priorities, and due dates. Your token stays on this computer.</p></div><Badge className={configured ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300' : ''}><span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${configured ? 'bg-emerald-500' : 'bg-slate-400'}`} />{configured ? 'Connected' : 'Not connected'}</Badge></CardHeader>
       <CardContent>
-        <div className="mt-3 rounded-xl border border-border/70 bg-muted/25 p-4 sm:p-5">
-          <label htmlFor="todoist-token" className="mb-2 block text-xs font-semibold">Todoist API token</label>
-          <div className="flex flex-col gap-2 sm:flex-row"><Input id="todoist-token" type="password" autoComplete="off" placeholder={configured ? 'Paste a new token to replace the saved one' : 'Paste your API token'} value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && token.trim()) void save() }} /><Button disabled={saving || !token.trim()} onClick={() => void save()}>{saving ? <LoaderCircle size={15} className="animate-spin" /> : null}{saving ? 'Saving…' : configured ? 'Replace token' : 'Save token'}</Button></div>
-          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Find the token in Todoist → Settings → Integrations → Developer. It is saved in this app’s local SQLite settings.</p>
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
-            <Button size="sm" variant="secondary" disabled={!configured || testing} onClick={() => void testConnection()}>{testing ? <LoaderCircle size={14} className="animate-spin" /> : <ShieldCheck size={14} />}{testing ? 'Checking…' : 'Test connection'}</Button>
-            {configured && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => void removeToken()}><LogOut size={14} />Remove token</Button>}
-          </div>
+        <label htmlFor="todoist-token" className="mb-2 block text-xs font-semibold">Todoist API token</label>
+        <div className="flex flex-col gap-2 sm:flex-row"><Input id="todoist-token" type="password" autoComplete="off" placeholder={configured ? 'Paste a new token to replace the saved one' : 'Paste your API token'} value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && token.trim()) void save() }} /><Button disabled={saving || !token.trim()} onClick={() => void save()}>{saving ? <LoaderCircle size={15} className="animate-spin" /> : null}{saving ? 'Saving…' : configured ? 'Replace token' : 'Save token'}</Button></div>
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Find the token in Todoist → Settings → Integrations → Developer. It is saved in this app’s local SQLite settings.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
+          <Button size="sm" variant="secondary" disabled={!configured || testing} onClick={() => void testConnection()}>{testing ? <LoaderCircle size={14} className="animate-spin" /> : <ShieldCheck size={14} />}{testing ? 'Checking…' : 'Test connection'}</Button>
+          {configured && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => void removeToken()}><LogOut size={14} />Remove token</Button>}
         </div>
         {(status || error) && <div role={error ? 'alert' : 'status'} className={`mt-4 rounded-xl px-3 py-2.5 text-xs ${error ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'}`}>{error ?? status}</div>}
       </CardContent>

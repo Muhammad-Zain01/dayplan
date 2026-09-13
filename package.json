@@ -3,9 +3,13 @@
   "version": "0.2.0",
   "private": true,
   "description": "A local-first, AI-native desktop productivity app for macOS and Windows.",
-  "author": { "name": "Muhammad Zain" },
+  "author": {
+    "name": "Muhammad Zain"
+  },
   "main": "./out/main/index.js",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -34,7 +38,6 @@
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "recharts": "^3.4.1",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.1.12"
   },
@@ -70,11 +73,15 @@
       "hardenedRuntime": false,
       "icon": "build/icon.svg",
       "category": "public.app-category.productivity",
-      "target": ["dmg"]
+      "target": [
+        "dmg"
+      ]
     },
     "win": {
       "icon": "build/icon.svg",
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "nsis": {
       "oneClick": false,

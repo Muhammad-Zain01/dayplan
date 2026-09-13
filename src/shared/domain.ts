@@ -45,7 +45,6 @@ export interface DashboardMetrics {
   dueToday: number
   overdue: number
   completedToday: number
-  priorityCounts: Array<{ priority: number; count: number }>
   upcoming: TodoistTask[]
   recentCompletions: Array<{ date: string; count: number }>
   refreshedAt: string
