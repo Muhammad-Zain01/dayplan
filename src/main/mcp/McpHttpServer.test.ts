@@ -55,6 +55,7 @@ describe('McpHttpServer', () => {
     const task = { id: 'task-1', content: 'Plan', description: '', project_id: null, labels: [], priority: 1, due: null }
     const taskService = {
       listTasks: vi.fn(async () => [task]),
+      listCompletedTasks: vi.fn(async () => [{ ...task, is_completed: true }]),
       getTask: vi.fn(async () => task),
       listProjects: vi.fn(async () => []),
       listLabels: vi.fn(async () => []),
@@ -92,7 +93,7 @@ describe('McpHttpServer', () => {
     expect(listResponse.status).toBe(200)
     const listPayload = await listResponse.json() as { result?: { tools?: Array<{ name: string }> } }
     expect(listPayload.result?.tools?.map(({ name }) => name)).toEqual([
-      'todoist_list_tasks', 'todoist_get_task', 'todoist_list_projects', 'todoist_list_labels',
+      'todoist_list_tasks', 'todoist_list_completed_tasks', 'todoist_get_task', 'todoist_list_projects', 'todoist_list_labels',
       'todoist_create_task', 'todoist_update_task', 'todoist_complete_task', 'todoist_reopen_task',
       'todoist_delete_task',
     ])
@@ -106,6 +107,18 @@ describe('McpHttpServer', () => {
     expect(readResponse.status, readText).toBe(200)
     expect(readText).toContain('task-1')
     expect(taskService.listTasks).toHaveBeenCalledOnce()
+    const completedResponse = await fetch(httpServer.url, {
+      method: 'POST',
+      headers: protocolHeaders('tools/call', {}, 'todoist_list_completed_tasks'),
+      body: requestBody(7, 'tools/call', {
+        name: 'todoist_list_completed_tasks',
+        arguments: { since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z' },
+      }),
+    })
+    const completedText = await completedResponse.text()
+    expect(completedResponse.status, completedText).toBe(200)
+    expect(completedText).toContain('"is_completed":true')
+    expect(taskService.listCompletedTasks).toHaveBeenCalledWith('2026-09-14T00:00:00Z', '2026-09-15T00:00:00Z')
     const createResponse = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_create_task'),

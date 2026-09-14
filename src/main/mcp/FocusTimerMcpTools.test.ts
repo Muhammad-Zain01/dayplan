@@ -35,8 +35,7 @@ describe('FocusTimerMcpTools', () => {
 
   it('starts a focus timer immediately', async () => {
     const harness = createHarness()
-
-    const result = await harness.handlers.get('focus_timer_start_focus')?.({ duration_minutes: 30 })
+    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never).register(harness.server)
 
     const result = await harness.handlers.get('focus_timer_start_focus')?.({ duration_minutes: 30 })
 

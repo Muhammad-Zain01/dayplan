@@ -15,6 +15,30 @@ const TaskSchema = z.object({
 }).passthrough()
 
 const TaskListSchema = z.array(TaskSchema)
+const CompletedTaskRangeSchema = z.object({
+  since: z.iso.datetime(),
+  until: z.iso.datetime(),
+}).strict().refine(({ since, until }) => {
+  const start = new Date(since)
+  const end = new Date(until)
+  if (end <= start) return false
+
+  const year = start.getUTCFullYear()
+  const month = start.getUTCMonth() + 3
+  const day = start.getUTCDate()
+  const targetMonthStart = new Date(Date.UTC(year, month, 1))
+  const lastDay = new Date(Date.UTC(targetMonthStart.getUTCFullYear(), targetMonthStart.getUTCMonth() + 1, 0)).getUTCDate()
+  const maxUntil = new Date(Date.UTC(
+    targetMonthStart.getUTCFullYear(),
+    targetMonthStart.getUTCMonth(),
+    Math.min(day, lastDay),
+    start.getUTCHours(),
+    start.getUTCMinutes(),
+    start.getUTCSeconds(),
+    start.getUTCMilliseconds(),
+  ))
+  return end <= maxUntil
+}, 'The completion date range must be positive and no longer than three calendar months.')
 const ProjectSchema = z.object({ id: z.string(), name: z.string(), is_inbox_project: z.boolean() }).passthrough()
 const LabelSchema = z.object({ name: z.string() }).passthrough()
 const TaskIdSchema = z.object({ task_id: z.string().min(1).max(128) }).strict()
@@ -35,6 +59,13 @@ export class TodoistTaskMcpTools {
       outputSchema: z.object({ tasks: TaskListSchema }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async ({ limit, project_id }) => this.result({ tasks: await this.taskService.listTasks({ limit: limit ?? 100, ...(project_id ? { project_id } : {}) }) }))
+
+    server.registerTool('todoist_list_completed_tasks', {
+      description: 'List completed Todoist tasks by completion time for a requested date-time range. since is inclusive and until is exclusive; ranges may be up to three calendar months. Use UTC ISO-8601 timestamps such as 2026-09-14T00:00:00Z for a day. Results are paginated fully by Todoist.',
+      inputSchema: CompletedTaskRangeSchema,
+      outputSchema: z.object({ tasks: TaskListSchema }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async ({ since, until }) => this.result({ tasks: await this.taskService.listCompletedTasks(since, until) }))
 
     server.registerTool('todoist_get_task', {
       description: 'Get an active task by its exact task_id. IDs are opaque; discover them with todoist_list_tasks.',

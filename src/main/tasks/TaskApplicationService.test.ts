@@ -37,4 +37,20 @@ describe('TaskApplicationService', () => {
     await expect(service.updateTask('t1', {})).rejects.toThrow('at least one field')
     expect(client.updateTask).not.toHaveBeenCalled()
   })
+
+  it('validates completed-task date ranges before querying Todoist', async () => {
+    const client = { listCompletedTasks: vi.fn(async () => [{ id: 'done-1', content: 'Completed' }]) }
+    const service = new TaskApplicationService(client as never)
+
+    await service.listCompletedTasks('2026-09-14T00:00:00Z', '2026-09-15T00:00:00Z')
+    expect(client.listCompletedTasks).toHaveBeenCalledWith('2026-09-14T00:00:00Z', '2026-09-15T00:00:00Z')
+
+    await expect(service.listCompletedTasks('2026-09-15T00:00:00Z', '2026-09-14T00:00:00Z'))
+      .rejects.toThrow('valid, increasing')
+    await expect(service.listCompletedTasks('2026-02-30T00:00:00Z', '2026-03-01T00:00:00Z'))
+      .rejects.toThrow('valid, increasing')
+    await expect(service.listCompletedTasks('2026-01-01T00:00:00Z', '2026-04-02T00:00:00Z'))
+      .rejects.toThrow('three calendar months')
+    expect(client.listCompletedTasks).toHaveBeenCalledOnce()
+  })
 })

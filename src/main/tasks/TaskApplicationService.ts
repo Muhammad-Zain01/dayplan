@@ -64,10 +64,37 @@ export class TaskApplicationService {
     return { deleted: true, subtasks_also_deleted: true }
   }
 
-  listCompletedTasks(since: string, until: string): Promise<TodoistTask[]> {
-    return this.todoistApiClient.listCompletedTasks(since, until).then((tasks) =>
-      tasks.map((task) => ({ ...task, is_completed: true })),
-    )
+  async listCompletedTasks(since: string, until: string): Promise<TodoistTask[]> {
+    this.validateCompletionRange(since, until)
+    const tasks = await this.todoistApiClient.listCompletedTasks(since, until)
+    return tasks.map((task) => ({ ...task, is_completed: true }))
+  }
+
+  private validateCompletionRange(since: string, until: string): void {
+    const start = new Date(since)
+    const end = new Date(until)
+    const utcIsoDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
+    if (
+      !utcIsoDateTime.test(since) || !utcIsoDateTime.test(until) ||
+      !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) ||
+      start.toISOString().slice(0, 10) !== since.slice(0, 10) ||
+      end.toISOString().slice(0, 10) !== until.slice(0, 10) || end <= start
+    ) {
+      throw new Error('Completion history requires a valid, increasing date-time range.')
+    }
+
+    const targetMonth = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 3, 1))
+    const lastDay = new Date(Date.UTC(targetMonth.getUTCFullYear(), targetMonth.getUTCMonth() + 1, 0)).getUTCDate()
+    const maximumEnd = new Date(Date.UTC(
+      targetMonth.getUTCFullYear(),
+      targetMonth.getUTCMonth(),
+      Math.min(start.getUTCDate(), lastDay),
+      start.getUTCHours(),
+      start.getUTCMinutes(),
+      start.getUTCSeconds(),
+      start.getUTCMilliseconds(),
+    ))
+    if (end > maximumEnd) throw new Error('Completion history is limited to three calendar months per request.')
   }
 
   private validateTaskId(taskId: string): void {

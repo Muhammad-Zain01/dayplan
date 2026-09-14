@@ -6,8 +6,10 @@ type ToolHandler = (input: unknown) => Promise<unknown>
 
 function setup(confirmedDeletion = true) {
   const handlers = new Map<string, ToolHandler>()
+  const configs = new Map<string, { inputSchema: { safeParse: (value: unknown) => { success: boolean } } }>()
   const taskService = {
     listTasks: vi.fn(async () => [{ id: 'task-1', content: 'Plan the day' }]),
+    listCompletedTasks: vi.fn(async () => [{ id: 'done-1', content: 'Completed today', is_completed: true }]),
     getTask: vi.fn(async () => ({ id: 'task-1', content: 'Plan the day' })),
     listProjects: vi.fn(async () => [{ id: 'inbox', name: 'Inbox', is_inbox_project: true }]),
     listLabels: vi.fn(async () => [{ name: 'work' }]),
@@ -19,11 +21,14 @@ function setup(confirmedDeletion = true) {
   }
   const deleteApprovalService = { confirmTaskDeletion: vi.fn(async () => confirmedDeletion) }
   const server = {
-    registerTool: (name: string, _config: unknown, handler: ToolHandler) => handlers.set(name, handler),
+    registerTool: (name: string, config: { inputSchema: { safeParse: (value: unknown) => { success: boolean } } }, handler: ToolHandler) => {
+      configs.set(name, config)
+      handlers.set(name, handler)
+    },
   }
 
   new TodoistTaskMcpTools(taskService as never, deleteApprovalService as never).register(server as unknown as McpServer)
-  return { handlers, taskService, deleteApprovalService }
+  return { handlers, configs, taskService, deleteApprovalService }
 }
 
 describe('TodoistTaskMcpTools', () => {
@@ -35,6 +40,7 @@ describe('TodoistTaskMcpTools', () => {
       'todoist_create_task',
       'todoist_delete_task',
       'todoist_get_task',
+      'todoist_list_completed_tasks',
       'todoist_list_labels',
       'todoist_list_projects',
       'todoist_list_tasks',
@@ -49,6 +55,27 @@ describe('TodoistTaskMcpTools', () => {
 
     expect(result.structuredContent.tasks).toHaveLength(1)
     expect(taskService.listTasks).toHaveBeenCalledWith({ limit: 10 })
+  })
+
+  it('lists completed tasks for a validated explicit date range', async () => {
+    const { handlers, configs, taskService } = setup()
+    const range = { since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z' }
+    const result = await handlers.get('todoist_list_completed_tasks')?.(range) as {
+      structuredContent: { tasks: Array<{ id: string; is_completed: boolean }> }
+    }
+
+    expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse(range).success).toBe(true)
+    expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse({
+      since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z', unexpected: true,
+    }).success).toBe(false)
+    expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse({
+      since: '2026-09-15T00:00:00Z', until: '2026-09-14T00:00:00Z',
+    }).success).toBe(false)
+    expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse({
+      since: '2026-01-01T00:00:00Z', until: '2026-04-02T00:00:00Z',
+    }).success).toBe(false)
+    expect(taskService.listCompletedTasks).toHaveBeenCalledWith(range.since, range.until)
+    expect(result.structuredContent.tasks).toEqual([{ id: 'done-1', content: 'Completed today', is_completed: true }])
   })
 
   it('executes task writes directly without asking for application approval', async () => {
