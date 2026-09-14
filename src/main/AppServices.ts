@@ -3,7 +3,7 @@ import { DashboardService } from './dashboard/DashboardService'
 import { FocusDashboardService } from './focus/FocusDashboardService'
 import { FocusSessionRepository } from './focus/FocusSessionRepository'
 import { TodoistApiClient } from './integrations/todoist/TodoistApiClient'
-import { ToolApprovalService } from './mcp/ToolApprovalService'
+import { TodoistDeleteApprovalService } from './mcp/TodoistDeleteApprovalService'
 import { TodoistTaskMcpTools } from './mcp/TodoistTaskMcpTools'
 import { CredentialService } from './security/CredentialService'
 import { SettingsApplicationService } from './settings/SettingsApplicationService'
@@ -18,7 +18,7 @@ export class AppServices {
   readonly focusSessionRepository: FocusSessionRepository
   readonly focusDashboardService: FocusDashboardService
   readonly settingsService: SettingsApplicationService
-  readonly approvalService: ToolApprovalService
+  readonly deleteApprovalService: TodoistDeleteApprovalService
   readonly mcpTools: TodoistTaskMcpTools
 
   constructor(databaseService: DatabaseService) {
@@ -30,7 +30,7 @@ export class AppServices {
     this.focusSessionRepository = new FocusSessionRepository(databaseService.database)
     this.focusDashboardService = new FocusDashboardService(this.focusSessionRepository)
     this.settingsService = new SettingsApplicationService(this.credentialService, this.todoistApiClient, settingsRepository)
-    this.approvalService = new ToolApprovalService()
-    this.mcpTools = new TodoistTaskMcpTools(this.taskService, this.approvalService)
+    this.deleteApprovalService = new TodoistDeleteApprovalService()
+    this.mcpTools = new TodoistTaskMcpTools(this.taskService, this.deleteApprovalService)
   }
 }

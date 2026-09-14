@@ -91,7 +91,7 @@ export interface FocusDashboardMetrics {
   refreshedAt: string
 }
 
-export type AppSection = 'dashboard' | 'today' | 'tasks' | 'focus' | 'settings'
+export type AppSection = 'dashboard' | 'today' | 'tasks' | 'focus' | 'tools' | 'settings'
 
 export type AppearanceMode = 'system' | 'light' | 'dark'
 

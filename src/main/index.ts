@@ -42,7 +42,7 @@ function createMcpServer(services: AppServices): McpServer {
   const server = new McpServer({ name: 'Dayplan', version: app.getVersion() })
   services.mcpTools.register(server)
   if (focusTimerService) {
-    new FocusTimerMcpTools(focusTimerService, services.focusDashboardService, services.approvalService).register(server)
+    new FocusTimerMcpTools(focusTimerService, services.focusDashboardService).register(server)
   }
   return server
 }

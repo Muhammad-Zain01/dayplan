@@ -50,8 +50,8 @@ describe('McpHttpServer', () => {
     httpServer = undefined
   })
 
-  it('serves Streamable HTTP discovery, all tools, and approved/denied tool calls over loopback', async () => {
-    let approved = true
+  it('serves Streamable HTTP discovery, direct writes, and delete-only confirmation over loopback', async () => {
+    let confirmDeletion = true
     const task = { id: 'task-1', content: 'Plan', description: '', project_id: null, labels: [], priority: 1, due: null }
     const taskService = {
       listTasks: vi.fn(async () => [task]),
@@ -64,10 +64,10 @@ describe('McpHttpServer', () => {
       reopenTask: vi.fn(async () => ({ reopened: true as const })),
       deleteTask: vi.fn(async () => ({ deleted: true as const, subtasks_also_deleted: true as const })),
     }
-    const approvalService = {
-      requestApproval: vi.fn(async (_name: string, _input: unknown) => approved),
+    const deleteApprovalService = {
+      confirmTaskDeletion: vi.fn(async (_taskId: string) => confirmDeletion),
     }
-    const tools = new TodoistTaskMcpTools(taskService as never, approvalService as never)
+    const tools = new TodoistTaskMcpTools(taskService as never, deleteApprovalService as never)
     httpServer = new McpHttpServer(() => {
       const server = new McpServer({ name: 'Dayplan test', version: '1.0.0' })
       tools.register(server)
@@ -106,36 +106,34 @@ describe('McpHttpServer', () => {
     expect(readResponse.status, readText).toBe(200)
     expect(readText).toContain('task-1')
     expect(taskService.listTasks).toHaveBeenCalledOnce()
-    expect(approvalService.requestApproval).not.toHaveBeenCalled()
-
-    const approvedWrite = await fetch(httpServer.url, {
+    const createResponse = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_create_task'),
-      body: requestBody(4, 'tools/call', { name: 'todoist_create_task', arguments: { content: 'Approved' } }),
+      body: requestBody(4, 'tools/call', { name: 'todoist_create_task', arguments: { content: 'Created directly' } }),
     })
-    expect(approvedWrite.status).toBe(200)
-    expect(await approvedWrite.text()).toContain('task-1')
-    expect(taskService.createTask).toHaveBeenCalledOnce()
-    expect(approvalService.requestApproval).toHaveBeenCalledWith('todoist_create_task', { content: 'Approved' })
-
-    approved = false
-    const deniedWrite = await fetch(httpServer.url, {
-      method: 'POST',
-      headers: protocolHeaders('tools/call', {}, 'todoist_create_task'),
-      body: requestBody(5, 'tools/call', { name: 'todoist_create_task', arguments: { content: 'Denied' } }),
-    })
-    expect(deniedWrite.status).toBe(200)
-    const deniedPayload = await deniedWrite.text()
-    expect(deniedPayload).toContain('user denied')
+    expect(createResponse.status).toBe(200)
+    expect(await createResponse.text()).toContain('task-1')
     expect(taskService.createTask).toHaveBeenCalledOnce()
 
     const deleteResponse = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_delete_task'),
-      body: requestBody(6, 'tools/call', { name: 'todoist_delete_task', arguments: { task_id: 'task-1' } }),
+      body: requestBody(5, 'tools/call', { name: 'todoist_delete_task', arguments: { task_id: 'task-1' } }),
     })
     expect(deleteResponse.status).toBe(200)
-    expect(approvalService.requestApproval).toHaveBeenLastCalledWith('todoist_delete_task', { task_id: 'task-1' })
+    expect(await deleteResponse.text()).toContain('task-1')
+    expect(deleteApprovalService.confirmTaskDeletion).toHaveBeenCalledWith('task-1')
+    expect(taskService.deleteTask).toHaveBeenCalledOnce()
+
+    confirmDeletion = false
+    const cancelledDelete = await fetch(httpServer.url, {
+      method: 'POST',
+      headers: protocolHeaders('tools/call', {}, 'todoist_delete_task'),
+      body: requestBody(6, 'tools/call', { name: 'todoist_delete_task', arguments: { task_id: 'task-2' } }),
+    })
+    expect(cancelledDelete.status).toBe(200)
+    expect(await cancelledDelete.text()).toContain('cancelled task deletion')
+    expect(taskService.deleteTask).toHaveBeenCalledOnce()
   })
 
   it('rejects untrusted Host and Origin headers and becomes unreachable after stopping', async () => {

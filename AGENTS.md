@@ -17,6 +17,7 @@ Read [CODE_STANDARDS.md](CODE_STANDARDS.md) before changing application code. Th
 - Use small classes for core services, repositories, use cases, APIs, coordinators, and MCP registries. Avoid God classes and duplicated rules.
 - React function components are for presentation. They call narrow typed preload methods; they do not contain application business rules.
 - UI IPC and MCP tools must call the same application service methods.
+- Keep the in-app Tools catalog separate from the MCP protocol registry; built-in tool views use stable registry IDs, and their business logic lives in focused main-process services exposed through narrow preload methods.
 - Validate all external input at runtime, including IPC payloads, API responses, and MCP tool arguments.
 - Keep main-process authority narrow and validate each IPC sender. Never expose a generic IPC, filesystem, shell, database, or arbitrary network API to the renderer.
 
@@ -31,8 +32,8 @@ Read [CODE_STANDARDS.md](CODE_STANDARDS.md) before changing application code. Th
 ## MCP
 
 - Use the official TypeScript MCP SDK and keep stdio output protocol-only.
-- Reuse task application services from the UI. Writes require explicit Dayplan approval and must fail closed if approval is denied or unavailable.
-- Deletion must explain that Todoist also deletes subtasks. MCP annotations never substitute for application-controlled approval.
+- Reuse task application services from the UI. MCP create, update, complete, reopen, and focus-timer actions execute immediately after validation; only Todoist task deletion requires Dayplan confirmation.
+- Deletion confirmation must explain that Todoist also deletes subtasks. MCP annotations accurately describe destructive operations.
 - Update `SKILL.md`, MCP documentation, and architecture/tool inventory whenever a callable feature or tool changes.
 
 ## Verification and documentation

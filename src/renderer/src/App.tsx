@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays, Check, CheckCircle2, CircleHelp, Clock3,
   Bell, Coffee, FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Moon, Monitor, Pause, Play, Plus, RotateCcw, Search, Settings2,
-  Server, ShieldCheck, Sun, Target, Timer, TriangleAlert,
+  Server, ShieldCheck, Sun, Target, Timer, TriangleAlert, Wrench,
 } from 'lucide-react'
 import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type AppSection, type DashboardMetrics, type FocusDashboardMetrics, type FocusTimerSnapshot, type McpHttpStatus, type TaskDraft, type TaskPatch, type TodoistTask } from '../../shared/domain'
 import dayplanLogoDark from '../../../assets/branding/dayplan-logo-dark.svg'
@@ -14,6 +14,8 @@ import { DatePicker } from './components/DatePicker'
 import DashboardCompletionChart from './components/DashboardCompletionChart'
 import DashboardFocusChart from './components/DashboardFocusChart'
 import { TaskRow } from './components/TaskRow'
+import { ToolsPage } from './modules/tools/ToolsPage'
+import { ProductivityToolRegistry } from './modules/tools/ProductivityToolRegistry'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
@@ -24,7 +26,10 @@ const navigation: Array<{ id: AppSection; label: string; icon: typeof LayoutDash
   { id: 'today', label: 'Today', icon: CalendarDays },
   { id: 'tasks', label: 'Tasks', icon: ListTodo },
   { id: 'focus', label: 'Focus', icon: Timer },
+  { id: 'tools', label: 'Tools', icon: Wrench },
 ]
+
+const productivityToolRegistry = new ProductivityToolRegistry()
 
 const todayKey = (): string => {
   const now = new Date()
@@ -134,7 +139,10 @@ export default function App() {
     }
   }, [section, showCompletedTasks, showCompletedToday])
 
-  useEffect(() => { void refresh(section) }, [refresh, section])
+  useEffect(() => {
+    if (section === 'tools') return
+    void refresh(section)
+  }, [refresh, section])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -148,7 +156,7 @@ export default function App() {
   useEffect(() => {
     const handleNavigate = (event: Event): void => {
       const target = (event as CustomEvent<AppSection>).detail
-      if (target === 'dashboard' || target === 'today' || target === 'tasks' || target === 'focus' || target === 'settings') navigate(target)
+      if (target === 'dashboard' || target === 'today' || target === 'tasks' || target === 'focus' || target === 'tools' || target === 'settings') navigate(target)
     }
     window.addEventListener('dayplan:navigate', handleNavigate)
     return () => window.removeEventListener('dayplan:navigate', handleNavigate)
@@ -246,7 +254,7 @@ export default function App() {
       <main className="main-content ml-[236px] min-h-screen max-[760px]:ml-[72px]">
         <div className="mx-auto w-full max-w-[1440px] px-8 py-8 max-[760px]:px-4 max-[760px]:py-5">
           {error && <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"><span className="flex items-center gap-2"><TriangleAlert size={16} />{error}</span><Button size="sm" variant="outline" onClick={() => void refresh(section)}>Try again</Button></div>}
-          {!configured && section !== 'settings' && section !== 'focus' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} focusMetrics={focusMetrics} loading={loading} onCreate={openCreateTask} onOpenFocus={() => navigate('focus')} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'focus' ? <FocusTimerPage metrics={focusMetrics} onMetricsRefresh={refreshFocusMetrics} /> : section === 'settings' ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={section === 'today' ? showCompletedToday : showCompletedTasks} taskDateFilter={taskDateFilter} onTaskDateChange={setTaskDateFilter} onShowCompleted={section === 'today' ? setShowCompletedToday : setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
+          {!configured && section !== 'settings' && section !== 'focus' && section !== 'tools' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} focusMetrics={focusMetrics} loading={loading} onCreate={openCreateTask} onOpenFocus={() => navigate('focus')} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'focus' ? <FocusTimerPage metrics={focusMetrics} onMetricsRefresh={refreshFocusMetrics} /> : section === 'tools' ? <ToolsPage registry={productivityToolRegistry} /> : section === 'settings' ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={section === 'today' ? showCompletedToday : showCompletedTasks} taskDateFilter={taskDateFilter} onTaskDateChange={setTaskDateFilter} onShowCompleted={section === 'today' ? setShowCompletedToday : setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
         </div>
       </main>
 
@@ -735,7 +743,7 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
           <p className="text-[11px] font-semibold">Endpoint URL</p>
           <code className="mt-1 block select-all break-all text-xs text-muted-foreground">{mcpStatus?.url ?? 'http://127.0.0.1:47631/mcp'}</code>
         </div>
-        <p className="mt-3 text-[11px] leading-5 text-muted-foreground">The endpoint listens only on this computer and has no authentication. Other local applications can read your Todoist task data. Every change still requires approval in Dayplan.</p>
+        <p className="mt-3 text-[11px] leading-5 text-muted-foreground">The endpoint listens only on this computer and has no authentication. Other local applications can read and change your Todoist task data. Deleting a task requires confirmation because Todoist also deletes its subtasks.</p>
         {mcpError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">{mcpError}</p>}
       </CardContent>
     </Card>

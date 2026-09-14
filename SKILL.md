@@ -54,6 +54,8 @@ Todoist priority values map as follows: API `4` = P1 Urgent, `3` = P2 High, `2` 
 
 Each module should own its application services and provide a focused MCP tool catalog to the central server. Add the UI and app use cases first, define narrow module-prefixed tools, classify each operation's risk, and cover it with unit and transport tests. Keep settings limited to integrations that actually exist. Never expose general shell execution, unrestricted filesystem access, arbitrary network access, or secrets through MCP.
 
+The user-facing Tools workspace and its `ProductivityToolRegistry` are a separate UI catalog, not the MCP registry. Register built-in utility views there, implement behavior in a focused application service, and add MCP adapters only when AI access is useful. Both UI IPC and MCP adapters must call the same service.
+
 ## Security and reliability
 
 - Treat all model-provided arguments as untrusted; validate and bound them.
