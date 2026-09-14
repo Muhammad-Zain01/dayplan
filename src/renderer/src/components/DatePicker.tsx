@@ -6,6 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 interface DatePickerProps {
   value: string
   onChange: (value: string) => void
+  compact?: boolean
+  side?: 'top' | 'bottom'
+  showShortcuts?: boolean
 }
 
 function dateKey(date: Date): string {
@@ -30,7 +33,7 @@ const weekdays = Array.from({ length: 7 }, (_, day) =>
   new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }).format(new Date(2024, 0, 7 + day)),
 )
 
-export function DatePicker({ value, onChange }: DatePickerProps) {
+export function DatePicker({ value, onChange, compact = false, side = 'top', showShortcuts = true }: DatePickerProps) {
   const selectedDate = parseDateKey(value)
   const [open, setOpen] = useState(false)
   const [visibleMonth, setVisibleMonth] = useState(() => {
@@ -51,7 +54,9 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
 
   const monthStart = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1)
   const gridStart = addDays(monthStart, -monthStart.getDay())
-  const days = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index))
+  const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate()
+  const weekCount = Math.ceil((monthStart.getDay() + daysInMonth) / 7)
+  const days = Array.from({ length: weekCount * 7 }, (_, index) => addDays(gridStart, index))
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(visibleMonth)
   const selectedLabel = selectedDate
     ? new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(selectedDate)
@@ -73,20 +78,22 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" aria-label="Choose due date" aria-haspopup="dialog" aria-expanded={open} className="flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-background px-3 text-left text-sm shadow-sm outline-none transition-colors hover:bg-accent/35 focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/20">
-          <CalendarDays size={16} className="shrink-0 text-muted-foreground" />
-          <span className={selectedDate ? 'flex-1' : 'flex-1 text-muted-foreground'}>{selectedDate ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(selectedDate) : 'Choose a date'}</span>
-          <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
+        <button type="button" aria-label="Choose due date" aria-haspopup="dialog" aria-expanded={open} className={`flex ${compact ? 'h-9 w-[185px] gap-2 px-2.5 text-xs' : 'h-11 w-full gap-3 px-3 text-sm'} items-center rounded-xl border border-input bg-background text-left shadow-sm outline-none transition-colors hover:bg-accent/35 focus-visible:border-primary/45 focus-visible:ring-2 focus-visible:ring-primary/20`}>
+          <CalendarDays size={compact ? 14 : 16} className="shrink-0 text-muted-foreground" />
+          <span className={`flex-1 whitespace-nowrap ${selectedDate ? '' : 'text-muted-foreground'}`}>{selectedDate ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(selectedDate) : 'Choose a date'}</span>
+          <ChevronDown size={compact ? 14 : 15} className="shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[316px] p-3">
-        <div className="grid grid-cols-2 gap-2">
-          {shortcut('Today', todayDate, Sun)}
-          {shortcut('Tomorrow', tomorrow)}
-          {shortcut('Weekend', weekend)}
-          {shortcut('Next week', nextWeek)}
-        </div>
-        <div className="my-3 h-px bg-border" />
+      <PopoverContent align="start" side={side} collisionPadding={10} className="calendar-popover-scroll max-h-[min(78vh,440px)] w-[316px] overflow-y-auto bg-card p-3">
+        {showShortcuts && <>
+          <div className="grid grid-cols-2 gap-2">
+            {shortcut('Today', todayDate, Sun)}
+            {shortcut('Tomorrow', tomorrow)}
+            {shortcut('Weekend', weekend)}
+            {shortcut('Next week', nextWeek)}
+          </div>
+          <div className="my-3 h-px bg-border" />
+        </>}
         <div className="mb-2 flex h-9 items-center justify-between">
           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Previous month" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1))}><ChevronLeft size={16} /></Button>
           <div className="text-sm font-semibold">{monthLabel}</div>

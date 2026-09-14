@@ -35,8 +35,10 @@ These rules apply to the Electron application, shared services, MCP server, test
 - Store app settings and local app-owned data in SQLite under the operating system's per-user application-data directory. Use parameterized SQL and ordered migrations.
 - Store the Todoist token directly in the SQLite `settings` table as UTF-8 bytes and leave it plain text at rest. Do not add a second credential store or encryption layer.
 - Keep the token inside the main-process credential service after saving. Do not log it, return the saved value to the renderer, or include it in MCP arguments, environment variables, or source control.
-- Settings provides Todoist token management and a locally persisted System/Light/Dark appearance choice. Add other settings only when their corresponding product feature exists.
+- Settings provides Todoist token management and a locally persisted System/Light/Dark appearance choice. Module-specific preferences, such as focus and break durations, are stored with app settings and edited in their owning module.
 - Treat Todoist as the source of truth for tasks. Local task data, if cached, must be refreshable and must not imply an offline write succeeded remotely.
+- Persist focus sessions and their active intervals in SQLite. Use timestamp-derived elapsed time, exclude pauses and breaks from focus totals, and split interval totals across local calendar-day boundaries.
+- Keep desktop timer authority in the main process. Do not tie timer lifetime to a React component or visible window; handle window hiding, app quit, startup recovery, and system suspend explicitly.
 - Keep HTTP construction, pagination, authentication, response parsing, and Todoist errors inside the Todoist integration module.
 - Redact credentials and sensitive request details from all errors and diagnostics.
 
@@ -47,6 +49,7 @@ These rules apply to the Electron application, shared services, MCP server, test
 - Use the same task use cases as the UI. Keep protocol metadata separate from business rules.
 - Require Dayplan-owned approval for every mutation. Fail closed if approval cannot be displayed or received; a host's approval hints do not grant authorization.
 - Keep MCP stdout limited to protocol output; send safe diagnostics to stderr.
+- Keep HTTP MCP opt-in, loopback-only, and protected by Host and Origin validation. Do not add general-purpose renderer networking or IPC to control it. Document clearly that this endpoint has no authentication and that local processes can read task data; Dayplan approval remains required for writes.
 - Never expose credentials, unrestricted shell, arbitrary filesystem access, SQL execution, or unrestricted network requests as tools.
 - Update `SKILL.md`, MCP documentation, and the tool catalog whenever an AI-callable feature changes.
 
@@ -56,6 +59,7 @@ These rules apply to the Electron application, shared services, MCP server, test
 - Keep the app responsive at compact and expanded desktop window sizes. Avoid gratuitous animation and large charting dependencies where simple summaries are clearer.
 - Make interactive controls keyboard accessible and label them for assistive technology.
 - Keep charts truthful: every metric needs a defined source and refresh time; do not invent historical data from a current snapshot.
+- Keep focus statistics derived from persisted intervals, including zero-value days; do not infer history from the current timer state.
 
 ## Tests and verification
 

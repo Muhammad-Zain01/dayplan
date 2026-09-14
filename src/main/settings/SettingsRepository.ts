@@ -1,6 +1,6 @@
 import type { DatabaseService } from '../database/DatabaseService'
 
-export type SettingKey = 'todoist_token' | 'appearance'
+export type SettingKey = 'todoist_token' | 'appearance' | 'mcp_http_enabled' | 'focus_timer_preferences'
 
 export class SettingsRepository {
   constructor(private readonly databaseService: DatabaseService) {}

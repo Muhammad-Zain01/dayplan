@@ -41,8 +41,8 @@ export default function DashboardCompletionChart({ metrics, loading, days }: { m
   const total = entries.reduce((sum, entry) => sum + entry.count, 0)
 
   return (
-    <div className="h-[230px] w-full" role="img" aria-label={`Task completion chart: ${total} tasks completed in the last ${days} days`}>
-      <svg className="h-full w-full overflow-visible" viewBox="0 0 700 220" preserveAspectRatio="none" aria-hidden="true">
+    <div className="mx-auto h-[230px] w-full max-w-[900px]" role="img" aria-label={`Task completion chart: ${total} tasks completed in the last ${days} days`}>
+      <svg className="h-full w-full overflow-visible" viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <defs>
           <linearGradient id="weekly-completion-fill" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="#5b8b82" stopOpacity="0.2" />

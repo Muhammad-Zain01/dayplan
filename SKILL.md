@@ -5,15 +5,17 @@ description: Add, change, review, or document Dayplan AI/MCP tools and module ca
 
 # Dayplan AI and MCP Tool Authoring
 
-Read `AGENTS.md`, `ARCHITECTURE.md`, and `MCP_IMPLEMENTATION_PLAN.md` before changing tool behavior. The Electron main process owns credentials, networking, approvals, MCP stdio, and the shared application services. React must call narrow preload APIs and never implement Todoist or MCP policy itself.
+Read `AGENTS.md`, `ARCHITECTURE.md`, and `MCP_IMPLEMENTATION_PLAN.md` before changing tool behavior. The Electron main process owns credentials, networking, approvals, MCP stdio and Streamable HTTP, and the shared application services. React must call narrow preload APIs and never implement Todoist or MCP policy itself.
 
 ## Current implementation
 
-The local MCP helper is started with `Dayplan --mcp` and communicates over stdio using the official TypeScript MCP SDK. It composes the same `TaskApplicationService`, `TodoistApiClient`, SQLite-backed credential repository, and approval service used by the desktop UI. Tool output and errors must never contain the Todoist token or local credential data. The helper must not write logs or banners to stdout.
+The existing local MCP helper is started with `Dayplan --mcp` and communicates over stdio using the official TypeScript MCP SDK. The GUI can also run an opt-in Streamable HTTP server at `http://127.0.0.1:47631/mcp`, using the SDK handler and Node adapter. Its enabled preference is stored in SQLite, defaults to off, and is remembered across GUI launches. HTTP binds only to loopback and checks Host and Origin with the SDK guards. It has no authentication, so other local processes can read task data; every mutation still goes through Dayplan approval. Both transports compose the same Todoist application services and the SQLite-backed focus timer service. The GUI process observes timer changes made by stdio through SQLite and remains responsible for tray display and desktop notifications while open. Tool output and errors must never contain the Todoist token or local credential data. Stdio must not write logs or banners to stdout.
 
-Task writes require an explicit native Dayplan approval dialog. Denial returns an MCP error and does not invoke the task use case. Delete confirmation states that Todoist also deletes subtasks. MCP annotations describe tool behavior but are not authorization; the approval service is the enforcement boundary.
+Todoist writes and focus timer controls require an explicit native Dayplan approval dialog. Denial returns an MCP error and does not invoke the use case. Delete confirmation states that Todoist also deletes subtasks. MCP annotations describe tool behavior but are not authorization; the approval service is the enforcement boundary.
 
 ## Tool catalog
+
+The current tool catalog contains seventeen tools: nine Todoist operations and eight focus timer/statistics operations.
 
 | Tool | Description and inputs | Access |
 | --- | --- | --- |
@@ -26,6 +28,14 @@ Task writes require an explicit native Dayplan approval dialog. Denial returns a
 | `todoist_complete_task` | Complete one active task by exact `task_id`. | Dayplan approval required. |
 | `todoist_reopen_task` | Reopen one completed task by exact `task_id`. | Dayplan approval required. |
 | `todoist_delete_task` | Permanently delete one task by exact `task_id`; Todoist also deletes its subtasks. | Explicit Dayplan approval required. |
+| `focus_timer_get_state` | Read current focus/break timer state and remaining seconds. | Read-only. |
+| `focus_get_daily_stats` | Read local focus totals for optional `days` (7 or 30; defaults to 7). Breaks are excluded. | Read-only. |
+| `focus_timer_start_focus` | Start a focus timer with required `duration_minutes` (1–240). | Dayplan approval required. |
+| `focus_timer_start_break` | Start a break timer with required `duration_minutes` (1–120). | Dayplan approval required. |
+| `focus_timer_pause` | Pause the active focus or break timer. | Dayplan approval required. |
+| `focus_timer_resume` | Resume a paused focus or break timer. | Dayplan approval required. |
+| `focus_timer_set_remaining` | Change the remaining minutes of an active timer. Focus timers allow 1–240; breaks allow 1–120. | Dayplan approval required. |
+| `focus_timer_end` | End the active timer early and save its actual active time. | Dayplan approval required. |
 
 Todoist priority values map as follows: API `4` = P1 Urgent, `3` = P2 High, `2` = P3 Medium, `1` = P4 Normal. Do not invent IDs, project names, or labels; discover them first. These tools use the Todoist task due date and do not create deadlines or reminders.
 
@@ -38,7 +48,7 @@ Todoist priority values map as follows: API `4` = P1 Urgent, `3` = P2 High, `2` 
 5. Register the tool in its module catalog and compose it through the central MCP server; do not duplicate use cases or Todoist HTTP logic.
 6. Add tests for catalog registration, schema/validation behavior, use-case invocation, approval denial, approved mutation, and secret-free output.
 7. Update this catalog, `MCP_IMPLEMENTATION_PLAN.md`, and architecture/setup documentation when behavior or status changes.
-8. Test through the actual stdio transport before claiming host compatibility. Unit tests alone do not establish that a host can connect.
+8. Test through the actual transport: verify stdio behavior and, for HTTP changes, loopback discovery, tools/list and tools/call, invalid Host/Origin rejection, settings lifecycle, and stopped-server reachability. Unit tests alone do not establish that a host can connect.
 
 ## Future module pattern
 
@@ -50,6 +60,7 @@ Each module should own its application services and provide a focused MCP tool c
 - Store the Todoist token directly in the SQLite settings table; do not pass tokens through MCP inputs, environment variables, arguments, logs, or outputs.
 - Keep approval in the Dayplan main process. Protocol annotations and host confirmation prompts do not replace Dayplan approval.
 - Keep diagnostics on stderr and protocol frames on stdout only.
+- Bind the local HTTP MCP server to `127.0.0.1`; do not expose it on LAN interfaces. Keep Host and Origin validation enabled.
 - Do not claim ChatGPT/Claude host integration until that host has successfully discovered and invoked the local helper.
 - Preserve cancellation and return actionable errors that do not expose credentials, database paths, or internal stack traces.
 

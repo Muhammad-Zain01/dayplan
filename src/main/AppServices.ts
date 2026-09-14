@@ -1,5 +1,7 @@
 import type { DatabaseService } from './database/DatabaseService'
 import { DashboardService } from './dashboard/DashboardService'
+import { FocusDashboardService } from './focus/FocusDashboardService'
+import { FocusSessionRepository } from './focus/FocusSessionRepository'
 import { TodoistApiClient } from './integrations/todoist/TodoistApiClient'
 import { ToolApprovalService } from './mcp/ToolApprovalService'
 import { TodoistTaskMcpTools } from './mcp/TodoistTaskMcpTools'
@@ -13,6 +15,8 @@ export class AppServices {
   readonly todoistApiClient: TodoistApiClient
   readonly taskService: TaskApplicationService
   readonly dashboardService: DashboardService
+  readonly focusSessionRepository: FocusSessionRepository
+  readonly focusDashboardService: FocusDashboardService
   readonly settingsService: SettingsApplicationService
   readonly approvalService: ToolApprovalService
   readonly mcpTools: TodoistTaskMcpTools
@@ -23,6 +27,8 @@ export class AppServices {
     this.todoistApiClient = new TodoistApiClient(this.credentialService)
     this.taskService = new TaskApplicationService(this.todoistApiClient)
     this.dashboardService = new DashboardService(this.taskService)
+    this.focusSessionRepository = new FocusSessionRepository(databaseService.database)
+    this.focusDashboardService = new FocusDashboardService(this.focusSessionRepository)
     this.settingsService = new SettingsApplicationService(this.credentialService, this.todoistApiClient, settingsRepository)
     this.approvalService = new ToolApprovalService()
     this.mcpTools = new TodoistTaskMcpTools(this.taskService, this.approvalService)

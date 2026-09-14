@@ -91,6 +91,8 @@ button { cursor: pointer; }
 ::selection { color: #18312c; background: #cde0d9; }
 
 .app-shell { min-height: 100vh; }
+.calendar-popover-scroll { scrollbar-width: none; }
+.calendar-popover-scroll::-webkit-scrollbar { display: none; }
 .animate-wave { animation: wave 2.6s ease-in-out infinite; }
 @keyframes wave { 0%, 100% { transform: rotate(0deg); } 15%, 35% { transform: rotate(12deg); } 25%, 45% { transform: rotate(-8deg); } }
 

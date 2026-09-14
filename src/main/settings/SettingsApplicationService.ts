@@ -1,6 +1,6 @@
 import type { CredentialService } from '../security/CredentialService'
 import type { TodoistApiClient } from '../integrations/todoist/TodoistApiClient'
-import type { AppearanceMode } from '../../shared/domain'
+import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type FocusTimerPreferences } from '../../shared/domain'
 import type { SettingsRepository } from './SettingsRepository'
 
 export class SettingsApplicationService {
@@ -21,6 +21,47 @@ export class SettingsApplicationService {
       throw new Error('Choose System, Light, or Dark appearance.')
     }
     this.settingsRepository.set('appearance', Buffer.from(mode, 'utf8'))
+  }
+
+  isMcpHttpEnabled(): boolean {
+    return this.settingsRepository.get('mcp_http_enabled')?.toString('utf8') === 'true'
+  }
+
+  setMcpHttpEnabled(enabled: boolean): void {
+    if (typeof enabled !== 'boolean') throw new Error('Choose whether the local MCP server is enabled.')
+    this.settingsRepository.set('mcp_http_enabled', Buffer.from(String(enabled), 'utf8'))
+  }
+
+  getFocusTimerPreferences(): FocusTimerPreferences {
+    const storedValue = this.settingsRepository.get('focus_timer_preferences')?.toString('utf8')
+    if (!storedValue) return { ...DEFAULT_FOCUS_TIMER_PREFERENCES }
+    try {
+      const parsed: unknown = JSON.parse(storedValue)
+      return this.isValidFocusTimerPreferences(parsed) ? parsed : { ...DEFAULT_FOCUS_TIMER_PREFERENCES }
+    } catch {
+      return { ...DEFAULT_FOCUS_TIMER_PREFERENCES }
+    }
+  }
+
+  setFocusTimerPreferences(preferences: FocusTimerPreferences): FocusTimerPreferences {
+    if (!this.isValidFocusTimerPreferences(preferences)) {
+      throw new Error('Focus duration must be 1–240 minutes and break duration must be 1–120 minutes.')
+    }
+    this.settingsRepository.set('focus_timer_preferences', Buffer.from(JSON.stringify(preferences), 'utf8'))
+    return { ...preferences }
+  }
+
+  private isValidFocusTimerPreferences(value: unknown): value is FocusTimerPreferences {
+    if (!value || typeof value !== 'object') return false
+    const preferences = value as Partial<FocusTimerPreferences>
+    return typeof preferences.focusMinutes === 'number'
+      && Number.isInteger(preferences.focusMinutes)
+      && preferences.focusMinutes >= FOCUS_TIMER_DURATION_LIMITS.focus.min
+      && preferences.focusMinutes <= FOCUS_TIMER_DURATION_LIMITS.focus.max
+      && typeof preferences.breakMinutes === 'number'
+      && Number.isInteger(preferences.breakMinutes)
+      && preferences.breakMinutes >= FOCUS_TIMER_DURATION_LIMITS.break.min
+      && preferences.breakMinutes <= FOCUS_TIMER_DURATION_LIMITS.break.max
   }
 
   getTodoistStatus(): { configured: boolean } {
