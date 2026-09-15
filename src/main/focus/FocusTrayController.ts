@@ -1,6 +1,7 @@
 import { app, dialog, Menu, MenuItem, nativeImage, Tray } from 'electron'
 import type { FocusTimerSnapshot } from '../../shared/domain'
 import { FocusTimerService } from './FocusTimerService'
+import type { WorkspaceApplicationService } from '../workspaces/WorkspaceApplicationService'
 
 export class FocusTrayController {
   private readonly tray: Tray
@@ -12,6 +13,7 @@ export class FocusTrayController {
   constructor(
     iconPath: string,
     private readonly timerService: FocusTimerService,
+    private readonly workspaceService: WorkspaceApplicationService,
     private readonly onOpen: () => void,
   ) {
     const icon = nativeImage.createFromPath(iconPath)
@@ -24,18 +26,20 @@ export class FocusTrayController {
     const menu = new Menu()
     menu.append(this.statusItem)
     menu.append(new MenuItem({ type: 'separator' }))
-    menu.append(new MenuItem({ label: 'Start 30-minute focus', click: () => this.runAction(() => this.timerService.startFocus(30)) }))
-    menu.append(new MenuItem({ label: 'Start 60-minute focus', click: () => this.runAction(() => this.timerService.startFocus(60)) }))
-    menu.append(new MenuItem({ label: 'Start 5-minute break', click: () => this.runAction(() => this.timerService.startBreak()) }))
+    menu.append(new MenuItem({ label: 'Start 30-minute focus', click: () => this.runAction(() => this.timerService.startFocus(this.workspaceService.getActiveWorkspaceId(), 30)) }))
+    menu.append(new MenuItem({ label: 'Start 60-minute focus', click: () => this.runAction(() => this.timerService.startFocus(this.workspaceService.getActiveWorkspaceId(), 60)) }))
+    menu.append(new MenuItem({ label: 'Start 5-minute break', click: () => this.runAction(() => this.timerService.startBreak(this.workspaceService.getActiveWorkspaceId())) }))
     this.pauseItem = new MenuItem({ label: 'Pause timer', click: () => this.runAction(() => {
       const snapshot = this.timerService.getSnapshot()
-      if (snapshot.status === 'paused') return this.timerService.resume()
-      if (snapshot.status === 'running') return this.timerService.pause()
+      if (snapshot.status === 'paused' && snapshot.workspaceId) return this.timerService.resume(snapshot.workspaceId)
+      if (snapshot.status === 'running' && snapshot.workspaceId) return this.timerService.pause(snapshot.workspaceId)
       return snapshot
     }) })
     this.endItem = new MenuItem({ label: 'End timer', click: () => this.runAction(() => {
       const snapshot = this.timerService.getSnapshot()
-      return snapshot.status === 'running' || snapshot.status === 'paused' ? this.timerService.endEarly() : snapshot
+      return (snapshot.status === 'running' || snapshot.status === 'paused') && snapshot.workspaceId
+        ? this.timerService.endEarly(snapshot.workspaceId)
+        : snapshot
     }) })
     menu.append(this.pauseItem)
     menu.append(this.endItem)
@@ -56,10 +60,11 @@ export class FocusTrayController {
     const remaining = this.formatTime(snapshot.remainingSeconds)
     const mode = snapshot.kind === 'focus' ? 'Focus' : snapshot.kind === 'break' ? 'Break' : 'Timer'
     const state = snapshot.status === 'paused' ? 'Paused' : snapshot.status === 'running' ? remaining : 'Complete'
-    this.statusItem.label = hasActiveSession ? `${mode} · ${state}` : snapshot.status === 'completed' ? `${mode} complete` : 'No timer running'
+    const workspaceName = hasActiveSession && snapshot.workspaceId ? this.workspaceService.getWorkspace(snapshot.workspaceId).name : null
+    this.statusItem.label = hasActiveSession ? `${mode}${workspaceName ? ` · ${workspaceName}` : ''} · ${state}` : snapshot.status === 'completed' ? `${mode} complete` : 'No timer running'
     this.pauseItem.label = snapshot.status === 'paused' ? 'Resume timer' : 'Pause timer'
     this.endItem.label = snapshot.status === 'ended_early' ? 'Timer ended' : 'End timer'
-    this.tray.setToolTip(hasActiveSession ? `Dayplan · ${mode} · ${state}` : 'Dayplan')
+    this.tray.setToolTip(hasActiveSession ? `Dayplan · ${mode}${workspaceName ? ` · ${workspaceName}` : ''} · ${state}` : 'Dayplan')
     if (process.platform === 'darwin') this.tray.setTitle(hasActiveSession ? remaining : '', { fontType: 'monospacedDigit' })
   }
 

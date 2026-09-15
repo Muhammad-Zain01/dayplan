@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppearanceMode, DashboardMetrics, FocusDashboardMetrics, FocusTimerPreferences, FocusTimerSnapshot, McpHttpStatus, TaskDraft, TaskPatch, TodoistLabel, TodoistProject, TodoistTask } from '../shared/domain'
+import type { AppearanceMode, DashboardMetrics, FocusDashboardMetrics, FocusTimerPreferences, FocusTimerSnapshot, McpHttpStatus, OwnerProfile, TaskDraft, TaskPatch, TodoistLabel, TodoistProject, TodoistTask, WorkspaceSetupStatus, WorkspaceSummary } from '../shared/domain'
 
 const dayplanApi = {
   listTasks: (projectId?: string): Promise<TodoistTask[]> => ipcRenderer.invoke('tasks:list', projectId ? { project_id: projectId } : {}),
@@ -32,11 +32,23 @@ const dayplanApi = {
   setAppearance: (mode: AppearanceMode): Promise<void> => ipcRenderer.invoke('settings:set-appearance', mode),
   getTodoistStatus: (): Promise<{ configured: boolean }> => ipcRenderer.invoke('settings:todoist-status'),
   testNotification: (): Promise<{ shown: true }> => ipcRenderer.invoke('settings:test-notification'),
-  saveTodoistToken: (token: string): Promise<void> => ipcRenderer.invoke('settings:save-todoist-token', token),
+  saveTodoistToken: (token: string): Promise<void> => ipcRenderer.invoke('settings:save-todoist-token', { token }),
   removeTodoistToken: (): Promise<void> => ipcRenderer.invoke('settings:remove-todoist-token'),
-  testTodoistConnection: (): Promise<{ connected: true }> => ipcRenderer.invoke('settings:test-todoist'),
+  testTodoistConnection: (candidateToken?: string): Promise<{ connected: true }> => ipcRenderer.invoke('settings:test-todoist', candidateToken === undefined ? undefined : { token: candidateToken }),
   getMcpHttpStatus: (): Promise<McpHttpStatus> => ipcRenderer.invoke('settings:mcp-http-status'),
   setMcpHttpEnabled: (enabled: boolean): Promise<McpHttpStatus> => ipcRenderer.invoke('settings:set-mcp-http-enabled', enabled),
+  listWorkspaces: (includeArchived = false): Promise<WorkspaceSummary[]> => ipcRenderer.invoke('workspace:list', { include_archived: includeArchived }),
+  getWorkspaceSetupStatus: (): Promise<WorkspaceSetupStatus> => ipcRenderer.invoke('workspace:setup-status'),
+  getOwnerProfile: (): Promise<OwnerProfile> => ipcRenderer.invoke('workspace:get-owner-profile'),
+  setOwnerName: (name: string): Promise<OwnerProfile> => ipcRenderer.invoke('workspace:set-owner-name', name),
+  saveInitialIdentity: (ownerName: string, workspaceName: string): Promise<void> => ipcRenderer.invoke('workspace:save-initial-identity', { owner_name: ownerName, workspace_name: workspaceName }),
+  completeInitialSetup: (): Promise<void> => ipcRenderer.invoke('workspace:complete-initial-setup'),
+  completeWorkspaceSetup: (workspaceId: string): Promise<void> => ipcRenderer.invoke('workspace:complete-setup', workspaceId),
+  createWorkspace: (name: string): Promise<WorkspaceSummary> => ipcRenderer.invoke('workspace:create', name),
+  renameWorkspace: (workspaceId: string, name: string): Promise<WorkspaceSummary> => ipcRenderer.invoke('workspace:rename', { workspace_id: workspaceId, name }),
+  archiveWorkspace: (workspaceId: string): Promise<{ archived: true; activeWorkspaceId: string }> => ipcRenderer.invoke('workspace:archive', workspaceId),
+  restoreWorkspace: (workspaceId: string): Promise<WorkspaceSummary> => ipcRenderer.invoke('workspace:restore', workspaceId),
+  selectWorkspace: (workspaceId: string): Promise<WorkspaceSummary> => ipcRenderer.invoke('workspace:select', workspaceId),
 }
 
 contextBridge.exposeInMainWorld('dayplan', dayplanApi)

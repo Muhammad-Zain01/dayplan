@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { TodoistApiClient } from './TodoistApiClient'
 
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
+
 function credentialService(token: string | null) {
   return { readTodoistToken: vi.fn(async () => token) }
 }
@@ -13,7 +15,7 @@ describe('TodoistApiClient', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 'two' }], next_cursor: null }), { status: 200 }))
     const client = new TodoistApiClient(credentials as never, request)
 
-    const result = await client.listTasks({ limit: 2, project_id: 'project/1' })
+    const result = await client.listTasks(WORKSPACE_ID, { limit: 2, project_id: 'project/1' })
 
     expect(result.map((task) => task.id)).toEqual(['one', 'two'])
     expect(request).toHaveBeenCalledTimes(2)
@@ -28,7 +30,7 @@ describe('TodoistApiClient', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 'done-2' }], next_cursor: null }), { status: 200 }))
     const client = new TodoistApiClient(credentialService('token') as never, request)
 
-    const result = await client.listCompletedTasks('2026-09-07T00:00:00Z', '2026-09-14T00:00:00Z')
+    const result = await client.listCompletedTasks(WORKSPACE_ID, '2026-09-07T00:00:00Z', '2026-09-14T00:00:00Z')
 
     expect(result.map((task) => task.id)).toEqual(['done-1', 'done-2'])
     expect(request).toHaveBeenCalledTimes(2)
@@ -40,7 +42,7 @@ describe('TodoistApiClient', () => {
     const request = vi.fn<typeof fetch>()
     const client = new TodoistApiClient(credentialService(null) as never, request)
 
-    await expect(client.listTasks()).rejects.toThrow('Add your Todoist API token in Settings')
+    await expect(client.listTasks(WORKSPACE_ID)).rejects.toThrow('Add your Todoist API token in Settings')
     expect(request).not.toHaveBeenCalled()
   })
 
@@ -48,7 +50,7 @@ describe('TodoistApiClient', () => {
     const request = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(JSON.stringify({ id: 't1' }), { status: 200 }))
     const client = new TodoistApiClient(credentialService('token') as never, request)
 
-    await client.updateTask('t1', { due_date: null })
+    await client.updateTask(WORKSPACE_ID, 't1', { due_date: null })
 
     expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ due_date: null })
   })
@@ -57,7 +59,7 @@ describe('TodoistApiClient', () => {
     const request = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response('', { status: 401 }))
     const client = new TodoistApiClient(credentialService('private-token') as never, request)
 
-    await expect(client.listTasks()).rejects.toThrow('Todoist rejected this token')
-    await expect(client.listTasks()).rejects.not.toThrow('private-token')
+    await expect(client.listTasks(WORKSPACE_ID)).rejects.toThrow('Todoist rejected this token')
+    await expect(client.listTasks(WORKSPACE_ID)).rejects.not.toThrow('private-token')
   })
 })

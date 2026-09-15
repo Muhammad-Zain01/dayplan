@@ -6,6 +6,8 @@ import { DatabaseService } from '../database/DatabaseService'
 import { DatabaseMigrator } from '../database/DatabaseMigrator'
 import { FocusSessionRepository } from './FocusSessionRepository'
 
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
+
 describe('FocusSessionRepository', () => {
   let directory: string | null = null
   let database: DatabaseService | null = null
@@ -20,12 +22,12 @@ describe('FocusSessionRepository', () => {
   it('stores only active focus time across pauses and resumes', () => {
     const repository = createRepository()
     const start = new Date(2026, 5, 4, 9, 0, 0)
-    const session = repository.createSession('focus', 30 * 60, start)
+    const session = repository.createSession(WORKSPACE_ID, 'focus', 30 * 60, start)
     repository.pauseSession(session.id, new Date(start.getTime() + 60_000))
     repository.resumeSession(session.id, new Date(start.getTime() + 30 * 60_000))
     repository.endSessionEarly(session.id, new Date(start.getTime() + 30 * 60_000 + 30_000))
 
-    const metrics = repository.getDashboardMetrics(7, new Date(start.getTime() + 31 * 60_000))
+    const metrics = repository.getDashboardMetrics(WORKSPACE_ID, 7, new Date(start.getTime() + 31 * 60_000))
     expect(metrics.todaySeconds).toBe(90)
     expect(metrics.todayCompletedSessions).toBe(0)
   })
@@ -33,7 +35,7 @@ describe('FocusSessionRepository', () => {
   it('recovers a crashed timer as paused and excludes unrecorded process downtime', () => {
     const repository = createRepository()
     const start = new Date(2026, 5, 4, 9, 0, 0)
-    const session = repository.createSession('focus', 30 * 60, start)
+    const session = repository.createSession(WORKSPACE_ID, 'focus', 30 * 60, start)
     repository.heartbeat(session.id, new Date(start.getTime() + 20_000))
 
     const recovery = repository.recoverInterruptedSession(new Date(start.getTime() + 30 * 60_000))
@@ -45,7 +47,7 @@ describe('FocusSessionRepository', () => {
   it('leaves a session running when another Dayplan process has a fresh heartbeat', () => {
     const repository = createRepository()
     const start = new Date(2026, 5, 4, 9, 0, 0)
-    const session = repository.createSession('focus', 30 * 60, start)
+    const session = repository.createSession(WORKSPACE_ID, 'focus', 30 * 60, start)
     repository.heartbeat(session.id, new Date(start.getTime() + 20_000))
 
     const recovery = repository.recoverInterruptedSession(new Date(start.getTime() + 25_000))
@@ -57,7 +59,7 @@ describe('FocusSessionRepository', () => {
   it('completes concurrent expiration checks only once', () => {
     const repository = createRepository()
     const start = new Date(2026, 5, 4, 9, 0, 0)
-    const session = repository.createSession('focus', 60, start)
+    const session = repository.createSession(WORKSPACE_ID, 'focus', 60, start)
     const due = new Date(start.getTime() + 60_000)
 
     expect(repository.completeSessionIfActive(session.id, due).completedNow).toBe(true)
@@ -68,10 +70,10 @@ describe('FocusSessionRepository', () => {
     const repository = createRepository()
     const start = new Date(2026, 5, 4, 23, 59, 30)
     const end = new Date(2026, 5, 5, 0, 0, 30)
-    const session = repository.createSession('focus', 2 * 60, start)
+    const session = repository.createSession(WORKSPACE_ID, 'focus', 2 * 60, start)
     repository.endSessionEarly(session.id, end)
 
-    const totals = repository.getDashboardMetrics(7, end).recentFocusTime
+    const totals = repository.getDashboardMetrics(WORKSPACE_ID, 7, end).recentFocusTime
     const yesterday = totals.find((entry) => entry.date === localDateKey(start))
     const today = totals.find((entry) => entry.date === localDateKey(end))
     expect(yesterday?.seconds).toBe(30)
@@ -81,16 +83,20 @@ describe('FocusSessionRepository', () => {
   it('keeps break sessions out of focus totals', () => {
     const repository = createRepository()
     const start = new Date(2026, 5, 4, 11, 0, 0)
-    const session = repository.createSession('break', 5 * 60, start)
+    const session = repository.createSession(WORKSPACE_ID, 'break', 5 * 60, start)
     repository.completeSession(session.id, new Date(start.getTime() + 5 * 60_000))
 
-    expect(repository.getDashboardMetrics(7, new Date(start.getTime() + 6 * 60_000)).todaySeconds).toBe(0)
+    expect(repository.getDashboardMetrics(WORKSPACE_ID, 7, new Date(start.getTime() + 6 * 60_000)).todaySeconds).toBe(0)
   })
 
   function createRepository(): FocusSessionRepository {
     directory = mkdtempSync(join(tmpdir(), 'dayplan-focus-test-'))
     database = new DatabaseService(directory)
     new DatabaseMigrator(database).migrate()
+    database.database.prepare(`
+      INSERT INTO workspaces (id, name, created_at, updated_at, onboarding_completed_at)
+      VALUES (?, 'Test workspace', ?, ?, ?)
+    `).run(WORKSPACE_ID, new Date().toISOString(), new Date().toISOString(), new Date().toISOString())
     return new FocusSessionRepository(database.database)
   }
 

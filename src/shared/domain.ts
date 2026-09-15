@@ -71,6 +71,7 @@ export const DEFAULT_FOCUS_TIMER_PREFERENCES: FocusTimerPreferences = {
 
 export interface FocusTimerSnapshot {
   sessionId: string | null
+  workspaceId: string | null
   kind: FocusSessionKind | null
   status: FocusTimerStatus
   targetSeconds: number
@@ -100,4 +101,24 @@ export interface McpHttpStatus {
   running: boolean
   url: string
   error: string | null
+}
+
+export interface WorkspaceSummary {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+  archivedAt: string | null
+  todoistConfigured: boolean
+}
+
+export interface OwnerProfile {
+  displayName: string | null
+}
+
+export interface WorkspaceSetupStatus {
+  initialSetupRequired: boolean
+  activeWorkspaceId: string
+  activeWorkspace: WorkspaceSummary
+  ownerProfile: OwnerProfile
 }

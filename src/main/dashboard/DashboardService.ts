@@ -4,14 +4,14 @@ import type { TaskApplicationService } from '../tasks/TaskApplicationService'
 export class DashboardService {
   constructor(private readonly taskService: TaskApplicationService) {}
 
-  async getMetrics(): Promise<DashboardMetrics> {
+  async getMetrics(workspaceId: string): Promise<DashboardMetrics> {
     const now = new Date()
     const today = this.localDateKey(now)
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29)
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
     const [tasks, completed] = await Promise.all([
-      this.taskService.listTasks({ limit: 5000 }),
-      this.taskService.listCompletedTasks(start.toISOString(), end.toISOString()),
+      this.taskService.listTasks(workspaceId, { limit: 5000 }),
+      this.taskService.listCompletedTasks(workspaceId, start.toISOString(), end.toISOString()),
     ])
     const overdueTasks = tasks.filter((task) => task.due?.date && task.due.date < today)
     const dueToday = tasks.filter((task) => task.due?.date === today).length

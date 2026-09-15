@@ -2,12 +2,14 @@ import type { CredentialService } from '../security/CredentialService'
 import type { TodoistApiClient } from '../integrations/todoist/TodoistApiClient'
 import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type FocusTimerPreferences } from '../../shared/domain'
 import type { SettingsRepository } from './SettingsRepository'
+import type { WorkspaceSettingsRepository } from '../workspaces/WorkspaceSettingsRepository'
 
 export class SettingsApplicationService {
   constructor(
     private readonly credentialService: CredentialService,
     private readonly todoistApiClient: TodoistApiClient,
     private readonly settingsRepository: SettingsRepository,
+    private readonly workspaceSettingsRepository: WorkspaceSettingsRepository,
   ) {}
 
   getAppearance(): AppearanceMode {
@@ -32,8 +34,8 @@ export class SettingsApplicationService {
     this.settingsRepository.set('mcp_http_enabled', Buffer.from(String(enabled), 'utf8'))
   }
 
-  getFocusTimerPreferences(): FocusTimerPreferences {
-    const storedValue = this.settingsRepository.get('focus_timer_preferences')?.toString('utf8')
+  getFocusTimerPreferences(workspaceId: string): FocusTimerPreferences {
+    const storedValue = this.workspaceSettingsRepository.get(workspaceId, 'focus_timer_preferences')?.toString('utf8')
     if (!storedValue) return { ...DEFAULT_FOCUS_TIMER_PREFERENCES }
     try {
       const parsed: unknown = JSON.parse(storedValue)
@@ -43,11 +45,11 @@ export class SettingsApplicationService {
     }
   }
 
-  setFocusTimerPreferences(preferences: FocusTimerPreferences): FocusTimerPreferences {
+  setFocusTimerPreferences(workspaceId: string, preferences: FocusTimerPreferences): FocusTimerPreferences {
     if (!this.isValidFocusTimerPreferences(preferences)) {
       throw new Error('Focus duration must be 1–240 minutes and break duration must be 1–120 minutes.')
     }
-    this.settingsRepository.set('focus_timer_preferences', Buffer.from(JSON.stringify(preferences), 'utf8'))
+    this.workspaceSettingsRepository.set(workspaceId, 'focus_timer_preferences', Buffer.from(JSON.stringify(preferences), 'utf8'))
     return { ...preferences }
   }
 
@@ -64,20 +66,20 @@ export class SettingsApplicationService {
       && preferences.breakMinutes <= FOCUS_TIMER_DURATION_LIMITS.break.max
   }
 
-  getTodoistStatus(): { configured: boolean } {
-    return { configured: this.credentialService.isTodoistConfigured() }
+  getTodoistStatus(workspaceId: string): { configured: boolean } {
+    return { configured: this.credentialService.isTodoistConfigured(workspaceId) }
   }
 
-  saveTodoistToken(token: string): Promise<void> {
-    return this.credentialService.saveTodoistToken(token)
+  saveTodoistToken(workspaceId: string, token: string): Promise<void> {
+    return this.credentialService.saveTodoistToken(workspaceId, token)
   }
 
-  removeTodoistToken(): Promise<void> {
-    return this.credentialService.removeTodoistToken()
+  removeTodoistToken(workspaceId: string): Promise<void> {
+    return this.credentialService.removeTodoistToken(workspaceId)
   }
 
-  async testTodoistConnection(): Promise<{ connected: true }> {
-    await this.todoistApiClient.testConnection()
+  async testTodoistConnection(workspaceId: string, candidateToken?: string): Promise<{ connected: true }> {
+    await this.todoistApiClient.testConnection(workspaceId, candidateToken)
     return { connected: true }
   }
 }

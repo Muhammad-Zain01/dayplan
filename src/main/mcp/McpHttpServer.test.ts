@@ -9,6 +9,7 @@ const modernEnvelope = {
   'io.modelcontextprotocol/clientCapabilities': {},
   'io.modelcontextprotocol/clientInfo': { name: 'Dayplan transport test', version: '1.0.0' },
 }
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
 
 function requestBody(id: number, method: string, params: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -68,7 +69,8 @@ describe('McpHttpServer', () => {
     const deleteApprovalService = {
       confirmTaskDeletion: vi.fn(async (_taskId: string) => confirmDeletion),
     }
-    const tools = new TodoistTaskMcpTools(taskService as never, deleteApprovalService as never)
+    const workspaceService = { assertUsableWorkspace: vi.fn() }
+    const tools = new TodoistTaskMcpTools(taskService as never, deleteApprovalService as never, workspaceService as never)
     httpServer = new McpHttpServer(() => {
       const server = new McpServer({ name: 'Dayplan test', version: '1.0.0' })
       tools.register(server)
@@ -101,7 +103,7 @@ describe('McpHttpServer', () => {
     const readResponse = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_list_tasks'),
-      body: requestBody(3, 'tools/call', { name: 'todoist_list_tasks', arguments: {} }),
+      body: requestBody(3, 'tools/call', { name: 'todoist_list_tasks', arguments: { workspace_id: WORKSPACE_ID } }),
     })
     const readText = await readResponse.text()
     expect(readResponse.status, readText).toBe(200)
@@ -112,17 +114,17 @@ describe('McpHttpServer', () => {
       headers: protocolHeaders('tools/call', {}, 'todoist_list_completed_tasks'),
       body: requestBody(7, 'tools/call', {
         name: 'todoist_list_completed_tasks',
-        arguments: { since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z' },
+        arguments: { workspace_id: WORKSPACE_ID, since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z' },
       }),
     })
     const completedText = await completedResponse.text()
     expect(completedResponse.status, completedText).toBe(200)
     expect(completedText).toContain('"is_completed":true')
-    expect(taskService.listCompletedTasks).toHaveBeenCalledWith('2026-09-14T00:00:00Z', '2026-09-15T00:00:00Z')
+    expect(taskService.listCompletedTasks).toHaveBeenCalledWith(WORKSPACE_ID, '2026-09-14T00:00:00Z', '2026-09-15T00:00:00Z')
     const createResponse = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_create_task'),
-      body: requestBody(4, 'tools/call', { name: 'todoist_create_task', arguments: { content: 'Created directly' } }),
+      body: requestBody(4, 'tools/call', { name: 'todoist_create_task', arguments: { workspace_id: WORKSPACE_ID, content: 'Created directly' } }),
     })
     expect(createResponse.status).toBe(200)
     expect(await createResponse.text()).toContain('task-1')
@@ -131,7 +133,7 @@ describe('McpHttpServer', () => {
     const deleteResponse = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_delete_task'),
-      body: requestBody(5, 'tools/call', { name: 'todoist_delete_task', arguments: { task_id: 'task-1' } }),
+      body: requestBody(5, 'tools/call', { name: 'todoist_delete_task', arguments: { workspace_id: WORKSPACE_ID, task_id: 'task-1' } }),
     })
     expect(deleteResponse.status).toBe(200)
     expect(await deleteResponse.text()).toContain('task-1')
@@ -142,7 +144,7 @@ describe('McpHttpServer', () => {
     const cancelledDelete = await fetch(httpServer.url, {
       method: 'POST',
       headers: protocolHeaders('tools/call', {}, 'todoist_delete_task'),
-      body: requestBody(6, 'tools/call', { name: 'todoist_delete_task', arguments: { task_id: 'task-2' } }),
+      body: requestBody(6, 'tools/call', { name: 'todoist_delete_task', arguments: { workspace_id: WORKSPACE_ID, task_id: 'task-2' } }),
     })
     expect(cancelledDelete.status).toBe(200)
     expect(await cancelledDelete.text()).toContain('cancelled task deletion')

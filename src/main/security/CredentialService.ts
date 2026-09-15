@@ -1,49 +1,52 @@
-import type { SettingsRepository } from '../settings/SettingsRepository'
+import type { WorkspaceSettingsRepository } from '../workspaces/WorkspaceSettingsRepository'
 
 const LEGACY_ENCRYPTED_FORMATS = new Set([1, 2])
 
 export class CredentialService {
-  private cachedTodoistToken: string | null | undefined
-  private pendingTodoistTokenRead: Promise<string | null> | null = null
+  private readonly cachedTodoistTokens = new Map<string, string | null>()
+  private readonly pendingTodoistTokenReads = new Map<string, Promise<string | null>>()
 
-  constructor(private readonly settingsRepository: SettingsRepository) {}
+  constructor(private readonly settingsRepository: WorkspaceSettingsRepository) {}
 
-  async saveTodoistToken(token: string): Promise<void> {
+  async saveTodoistToken(workspaceId: string, token: string): Promise<void> {
     const normalizedToken = token.trim()
     if (normalizedToken.length < 20 || normalizedToken.length > 4096) {
       throw new Error('Enter a valid Todoist API token.')
     }
 
-    this.settingsRepository.set('todoist_token', Buffer.from(normalizedToken, 'utf8'))
-    this.cachedTodoistToken = normalizedToken
+    this.settingsRepository.set(workspaceId, 'todoist_token', Buffer.from(normalizedToken, 'utf8'))
+    this.cachedTodoistTokens.set(workspaceId, normalizedToken)
   }
 
-  async readTodoistToken(): Promise<string | null> {
-    if (this.cachedTodoistToken !== undefined) return this.cachedTodoistToken
-    if (this.pendingTodoistTokenRead) return this.pendingTodoistTokenRead
+  async readTodoistToken(workspaceId: string): Promise<string | null> {
+    const cached = this.cachedTodoistTokens.get(workspaceId)
+    if (cached !== undefined) return cached
+    const pending = this.pendingTodoistTokenReads.get(workspaceId)
+    if (pending) return pending
 
-    this.pendingTodoistTokenRead = Promise.resolve(this.readStoredTodoistToken())
+    const pendingRead = Promise.resolve(this.readStoredTodoistToken(workspaceId))
+    this.pendingTodoistTokenReads.set(workspaceId, pendingRead)
     try {
-      const token = await this.pendingTodoistTokenRead
-      this.cachedTodoistToken = token
+      const token = await pendingRead
+      this.cachedTodoistTokens.set(workspaceId, token)
       return token
     } finally {
-      this.pendingTodoistTokenRead = null
+      this.pendingTodoistTokenReads.delete(workspaceId)
     }
   }
 
-  async removeTodoistToken(): Promise<void> {
-    this.settingsRepository.remove('todoist_token')
-    this.cachedTodoistToken = null
+  async removeTodoistToken(workspaceId: string): Promise<void> {
+    this.settingsRepository.remove(workspaceId, 'todoist_token')
+    this.cachedTodoistTokens.set(workspaceId, null)
   }
 
-  isTodoistConfigured(): boolean {
-    const value = this.settingsRepository.get('todoist_token')
+  isTodoistConfigured(workspaceId: string): boolean {
+    const value = this.settingsRepository.get(workspaceId, 'todoist_token')
     return value !== undefined && !this.isLegacyEncryptedValue(value)
   }
 
-  private readStoredTodoistToken(): string | null {
-    const value = this.settingsRepository.get('todoist_token')
+  private readStoredTodoistToken(workspaceId: string): string | null {
+    const value = this.settingsRepository.get(workspaceId, 'todoist_token')
     if (!value || this.isLegacyEncryptedValue(value)) return null
     return value.toString('utf8')
   }

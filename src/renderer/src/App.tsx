@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays, Check, CheckCircle2, CircleHelp, Clock3,
-  Bell, Coffee, FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Moon, Monitor, Pause, Play, Plus, RotateCcw, Search, Settings2,
-  Server, ShieldCheck, Sun, Target, Timer, TriangleAlert, Wrench,
+  Bell, ChevronDown, Coffee, FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Moon, Monitor, Pause, Play, Plus, RotateCcw, Search, Settings2,
+  Server, ShieldCheck, Sun, Target, Timer, TriangleAlert, UserRound, Wrench,
 } from 'lucide-react'
-import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type AppSection, type DashboardMetrics, type FocusDashboardMetrics, type FocusTimerSnapshot, type McpHttpStatus, type TaskDraft, type TaskPatch, type TodoistTask } from '../../shared/domain'
+import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type AppSection, type DashboardMetrics, type FocusDashboardMetrics, type FocusTimerSnapshot, type McpHttpStatus, type TaskDraft, type TaskPatch, type TodoistTask, type WorkspaceSetupStatus, type WorkspaceSummary } from '../../shared/domain'
 import dayplanLogoDark from '../../../assets/branding/dayplan-logo-dark.svg'
 import dayplanLogoLight from '../../../assets/branding/dayplan-logo-light.svg'
 import dayplanMarkDark from '../../../assets/branding/dayplan-mark-dark.svg'
@@ -20,6 +20,9 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Input } from './components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from './components/ui/popover'
+import { WorkspaceCreateDialog } from './components/WorkspaceCreateDialog'
+import { WorkspaceOnboarding } from './components/WorkspaceOnboarding'
 
 const navigation: Array<{ id: AppSection; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -43,6 +46,14 @@ const dateKeyOffset = (days: number): string => {
 }
 
 export default function App() {
+  const [appReady, setAppReady] = useState(false)
+  const [setupStatus, setSetupStatus] = useState<WorkspaceSetupStatus | null>(null)
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceSummary | null>(null)
+  const [ownerName, setOwnerName] = useState('')
+  const [deviceTimer, setDeviceTimer] = useState<FocusTimerSnapshot | null>(null)
+  const [workspaceCreateOpen, setWorkspaceCreateOpen] = useState(false)
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
   const [section, setSection] = useState<AppSection>('dashboard')
   const [configured, setConfigured] = useState(false)
   const [tasks, setTasks] = useState<TodoistTask[]>([])
@@ -65,15 +76,30 @@ export default function App() {
 
   useEffect(() => {
     let active = true
-    void window.dayplan.getAppearance()
-      .then((mode) => { if (active) setAppearance(mode) })
-      .catch(() => { if (active) setAppearance('system') })
+    void Promise.all([
+      window.dayplan.getAppearance(),
+      window.dayplan.getWorkspaceSetupStatus(),
+      window.dayplan.listWorkspaces(),
+    ]).then(([mode, setup, availableWorkspaces]) => {
+      if (!active) return
+      setAppearance(mode)
+      setSetupStatus(setup)
+      setWorkspaces(availableWorkspaces)
+      setActiveWorkspace(setup.activeWorkspace)
+      setOwnerName(setup.ownerProfile.displayName ?? '')
+      setAppReady(true)
+    }).catch((caught: unknown) => {
+      if (!active) return
+      setError(caught instanceof Error ? caught.message : 'Dayplan could not load your workspace.')
+      setAppReady(true)
+    })
     return () => { active = false }
   }, [])
 
   useEffect(() => {
     let active = true
     const handleTimerState = (snapshot: FocusTimerSnapshot): void => {
+      setDeviceTimer(snapshot)
       timerIsRunning.current = snapshot.status === 'running'
       if (snapshot.status === 'completed' || snapshot.status === 'ended_early') {
         void refreshFocusMetrics()
@@ -140,9 +166,9 @@ export default function App() {
   }, [section, showCompletedTasks, showCompletedToday])
 
   useEffect(() => {
-    if (section === 'tools') return
+    if (!appReady || setupStatus?.initialSetupRequired || section === 'tools') return
     void refresh(section)
-  }, [refresh, section])
+  }, [appReady, setupStatus?.initialSetupRequired, refresh, section])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -199,6 +225,73 @@ export default function App() {
     await refresh(section)
   }
 
+  async function changeWorkspace(workspaceId: string): Promise<void> {
+    if (workspaceId === activeWorkspace?.id) return
+    setLoading(true)
+    setTasks([])
+    setMetrics(null)
+    setFocusMetrics(null)
+    setError(null)
+    try {
+      const selected = await window.dayplan.selectWorkspace(workspaceId)
+      setActiveWorkspace(selected)
+      setWorkspaces(await window.dayplan.listWorkspaces())
+      await refresh(section)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The workspace could not be changed.')
+      setLoading(false)
+    }
+  }
+
+  async function finishInitialSetup(): Promise<void> {
+    const [status, availableWorkspaces] = await Promise.all([
+      window.dayplan.getWorkspaceSetupStatus(),
+      window.dayplan.listWorkspaces(),
+    ])
+    setSetupStatus(status)
+    setActiveWorkspace(status.activeWorkspace)
+    setOwnerName(status.ownerProfile.displayName ?? '')
+    setWorkspaces(availableWorkspaces)
+    setConfigured(status.activeWorkspace.todoistConfigured)
+    await refresh('dashboard')
+  }
+
+  async function handleWorkspaceCreated(workspace: WorkspaceSummary): Promise<void> {
+    setActiveWorkspace(workspace)
+    setSection('dashboard')
+    setTasks([])
+    setMetrics(null)
+    setWorkspaces(await window.dayplan.listWorkspaces())
+    await refresh('dashboard')
+  }
+
+  async function handleWorkspaceArchived(): Promise<void> {
+    const [status, availableWorkspaces] = await Promise.all([
+      window.dayplan.getWorkspaceSetupStatus(),
+      window.dayplan.listWorkspaces(),
+    ])
+    setActiveWorkspace(status.activeWorkspace)
+    setWorkspaces(availableWorkspaces)
+    await refresh(section)
+  }
+
+  async function saveOwnerName(name: string): Promise<void> {
+    const profile = await window.dayplan.setOwnerName(name)
+    setOwnerName(profile.displayName ?? '')
+  }
+
+  async function renameActiveWorkspace(name: string): Promise<void> {
+    if (!activeWorkspace) return
+    const updated = await window.dayplan.renameWorkspace(activeWorkspace.id, name)
+    setActiveWorkspace(updated)
+    setWorkspaces(await window.dayplan.listWorkspaces())
+  }
+
+  async function restoreWorkspace(workspaceId: string): Promise<void> {
+    await window.dayplan.restoreWorkspace(workspaceId)
+    setWorkspaces(await window.dayplan.listWorkspaces())
+  }
+
   function openCreateTask(): void {
     setEditingTask(undefined)
     setComposerOpen(true)
@@ -215,6 +308,9 @@ export default function App() {
     setSection(target)
   }
 
+  if (!appReady) return <main className="grid min-h-screen place-items-center bg-background text-muted-foreground"><div className="flex items-center gap-2 text-sm"><LoaderCircle size={17} className="animate-spin" />Opening your workspace…</div></main>
+  if (setupStatus?.initialSetupRequired) return <WorkspaceOnboarding setup={setupStatus} onComplete={finishInitialSetup} />
+
   return (
     <div className="app-shell min-h-screen bg-background text-foreground">
       <aside className="sidebar fixed inset-y-0 left-0 z-20 flex w-[236px] flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground max-[760px]:w-[72px] max-[760px]:items-center max-[760px]:px-2">
@@ -229,7 +325,6 @@ export default function App() {
           </div>
         </div>
 
-        <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-muted max-[760px]:hidden">Workspace</div>
         <nav className="grid gap-1" aria-label="Main navigation">
           {navigation.map((item) => {
             const Icon = item.icon
@@ -244,21 +339,33 @@ export default function App() {
           <button onClick={() => navigate('settings')} title="Settings" className={`flex h-10 items-center gap-3 rounded-xl px-3 text-[13px] font-medium transition max-[760px]:w-11 max-[760px]:justify-center max-[760px]:px-0 ${section === 'settings' ? 'bg-sidebar-active text-sidebar-active-foreground' : 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground'}`}>
             <Settings2 size={17} /><span className="max-[760px]:hidden">Settings</span>
           </button>
-          <div className="flex items-center gap-3 border-t border-sidebar-border px-2 pt-4 max-[760px]:justify-center max-[760px]:px-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dbe8e6] text-xs font-semibold text-[#386d68] dark:bg-[#293736] dark:text-[#b5d0c9]">Z</div>
-            <div className="min-w-0 max-[760px]:hidden"><div className="truncate text-xs font-medium">My workspace</div><div className="text-[10px] text-sidebar-muted">Personal</div></div>
-          </div>
+          <Popover open={workspaceMenuOpen} onOpenChange={setWorkspaceMenuOpen}>
+            <PopoverTrigger asChild>
+              <button type="button" title="Profile and workspace switcher" aria-label="Open profile and workspace switcher" className="flex w-full items-center gap-3 rounded-xl px-2 pt-1 text-left transition hover:bg-sidebar-hover max-[760px]:justify-center max-[760px]:px-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dbe8e6] text-xs font-semibold text-[#386d68] dark:bg-[#293736] dark:text-[#b5d0c9]">{ownerName.slice(0, 1).toLocaleUpperCase() || 'O'}</div>
+                <div className="min-w-0 flex-1 max-[760px]:hidden"><div className="truncate text-xs font-medium">{ownerName || 'Your profile'}</div><div className="flex items-center gap-1 truncate text-[10px] text-sidebar-muted"><span className="truncate">{activeWorkspace?.name ?? 'Workspace'}</span><span className="rounded-full bg-sidebar-active px-1.5 py-0.5 text-[9px]">Personal</span></div></div>
+                <ChevronDown size={15} className="shrink-0 text-sidebar-muted max-[760px]:hidden" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="start" collisionPadding={10} className="w-[224px] p-2">
+              <div className="border-b border-border/70 px-2.5 pb-2.5"><div className="text-xs font-semibold">{ownerName || 'Your profile'}</div><div className="mt-0.5 text-[11px] text-muted-foreground">Choose a workspace</div></div>
+              <div className="py-1.5"><div className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Workspaces</div>{workspaces.map((workspace) => <button key={workspace.id} type="button" className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition hover:bg-accent" onClick={() => { void changeWorkspace(workspace.id).finally(() => setWorkspaceMenuOpen(false)) }}><span className="flex min-w-0 items-center gap-2"><FolderKanban size={14} className="shrink-0 text-primary" /><span className="truncate">{workspace.name}</span></span>{workspace.id === activeWorkspace?.id && <Check size={14} className="shrink-0 text-primary" />}</button>)}</div>
+              <div className="grid gap-1 border-t border-border/70 pt-1.5"><button type="button" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-primary transition hover:bg-accent" onClick={() => { setWorkspaceMenuOpen(false); setWorkspaceCreateOpen(true) }}><Plus size={14} />New workspace</button><button type="button" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-foreground" onClick={() => { setWorkspaceMenuOpen(false); navigate('settings') }}><Settings2 size={14} />Profile and workspace settings</button></div>
+            </PopoverContent>
+          </Popover>
         </div>
       </aside>
 
       <main className="main-content ml-[236px] min-h-screen max-[760px]:ml-[72px]">
         <div className="mx-auto w-full max-w-[1440px] px-8 py-8 max-[760px]:px-4 max-[760px]:py-5">
+          {deviceTimer && (deviceTimer.status === 'running' || deviceTimer.status === 'paused') && deviceTimer.workspaceId !== activeWorkspace?.id && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"><span className="flex items-center gap-2"><Timer size={16} className="text-primary" />{deviceTimer.kind === 'break' ? 'Break' : 'Focus'} · {deviceTimer.status === 'running' ? `${formatTimerClock(deviceTimer.remainingSeconds)} remaining` : 'Paused'} in <strong>{workspaces.find((workspace) => workspace.id === deviceTimer.workspaceId)?.name ?? 'another workspace'}</strong>.</span><Button size="sm" variant="outline" onClick={() => deviceTimer.workspaceId && void changeWorkspace(deviceTimer.workspaceId)}>Switch to timer workspace</Button></div>}
           {error && <div role="alert" className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"><span className="flex items-center gap-2"><TriangleAlert size={16} />{error}</span><Button size="sm" variant="outline" onClick={() => void refresh(section)}>Try again</Button></div>}
-          {!configured && section !== 'settings' && section !== 'focus' && section !== 'tools' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} focusMetrics={focusMetrics} loading={loading} onCreate={openCreateTask} onOpenFocus={() => navigate('focus')} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'focus' ? <FocusTimerPage metrics={focusMetrics} onMetricsRefresh={refreshFocusMetrics} /> : section === 'tools' ? <ToolsPage registry={productivityToolRegistry} /> : section === 'settings' ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={section === 'today' ? showCompletedToday : showCompletedTasks} taskDateFilter={taskDateFilter} onTaskDateChange={setTaskDateFilter} onShowCompleted={section === 'today' ? setShowCompletedToday : setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
+          {!configured && section !== 'settings' && section !== 'focus' && section !== 'tools' ? <ConnectTodoist onOpenSettings={() => navigate('settings')} /> : section === 'dashboard' ? <DashboardPage metrics={metrics} focusMetrics={focusMetrics} loading={loading} ownerName={ownerName} onCreate={openCreateTask} onOpenFocus={() => navigate('focus')} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} /> : section === 'focus' ? <FocusTimerPage metrics={focusMetrics} onMetricsRefresh={refreshFocusMetrics} /> : section === 'tools' ? <ToolsPage registry={productivityToolRegistry} /> : section === 'settings' && activeWorkspace ? <SettingsPage configured={configured} appearance={appearance} onAppearanceChange={setAppearance} ownerName={ownerName} activeWorkspace={activeWorkspace} workspaces={workspaces} onOwnerNameSave={saveOwnerName} onWorkspaceRename={renameActiveWorkspace} onWorkspaceArchive={handleWorkspaceArchived} onWorkspaceRestore={restoreWorkspace} onCreateWorkspace={() => setWorkspaceCreateOpen(true)} onSaved={() => { setSection('dashboard'); void refresh('dashboard') }} onRemoved={() => { setConfigured(false); setSection('settings') }} /> : <TaskPage section={section} tasks={visibleTasks} loading={loading} search={search} showCompleted={section === 'today' ? showCompletedToday : showCompletedTasks} taskDateFilter={taskDateFilter} onTaskDateChange={setTaskDateFilter} onShowCompleted={section === 'today' ? setShowCompletedToday : setShowCompletedTasks} onSearch={setSearch} onCreate={openCreateTask} onEdit={openEditTask} onComplete={completeTask} onReopen={reopenTask} onDelete={deleteTask} />}
         </div>
       </main>
 
       <TaskComposer open={composerOpen} task={editingTask} onOpenChange={setComposerOpen} onSave={saveTask} />
+      <WorkspaceCreateDialog open={workspaceCreateOpen} onOpenChange={setWorkspaceCreateOpen} onCreated={handleWorkspaceCreated} />
     </div>
   )
 }
@@ -267,8 +374,8 @@ function PageHeading({ title, description, eyebrow }: { title: string; descripti
   return <div className="mb-7"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</div><h1 className="text-[28px] font-semibold tracking-[-0.04em] sm:text-[32px]">{title}</h1><p className="mt-1.5 text-sm text-muted-foreground">{description}</p></div>
 }
 
-function DashboardPage({ metrics, focusMetrics, loading, onCreate, onOpenFocus, onEdit, onComplete, onReopen, onDelete }: {
-  metrics: DashboardMetrics | null; focusMetrics: FocusDashboardMetrics | null; loading: boolean; onCreate: () => void; onOpenFocus: () => void; onEdit: (task: TodoistTask) => void
+function DashboardPage({ metrics, focusMetrics, loading, ownerName, onCreate, onOpenFocus, onEdit, onComplete, onReopen, onDelete }: {
+  metrics: DashboardMetrics | null; focusMetrics: FocusDashboardMetrics | null; loading: boolean; ownerName: string; onCreate: () => void; onOpenFocus: () => void; onEdit: (task: TodoistTask) => void
   onComplete: (task: TodoistTask) => Promise<void>; onReopen: (task: TodoistTask) => Promise<void>; onDelete: (task: TodoistTask) => Promise<void>
 }) {
   const [completionRange, setCompletionRange] = useState<7 | 30>(7)
@@ -279,7 +386,7 @@ function DashboardPage({ metrics, focusMetrics, loading, onCreate, onOpenFocus, 
 
   return <>
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-      <div><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{dateText}</div><h1 className="text-[28px] font-semibold tracking-[-0.04em] sm:text-[34px]">{greeting}, Zain <span className="inline-block origin-bottom-right animate-wave">✦</span></h1><p className="mt-1.5 text-sm text-muted-foreground">Make today feel a little more manageable.</p></div>
+      <div><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{dateText}</div><h1 className="text-[28px] font-semibold tracking-[-0.04em] sm:text-[34px]">{greeting}{ownerName ? `, ${ownerName}` : ''} <span className="inline-block origin-bottom-right animate-wave">✦</span></h1><p className="mt-1.5 text-sm text-muted-foreground">Make today feel a little more manageable.</p></div>
       <Button onClick={onCreate}><Plus size={16} />Plan a task</Button>
     </div>
 
@@ -604,13 +711,28 @@ function TaskPage({ section, tasks, loading, search, showCompleted, taskDateFilt
   </>
 }
 
-function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onRemoved }: {
+function SettingsPage({ configured, appearance, onAppearanceChange, ownerName, activeWorkspace, workspaces, onOwnerNameSave, onWorkspaceRename, onWorkspaceArchive, onWorkspaceRestore, onCreateWorkspace, onSaved, onRemoved }: {
   configured: boolean
   appearance: AppearanceMode
   onAppearanceChange: (mode: AppearanceMode) => void
+  ownerName: string
+  activeWorkspace: WorkspaceSummary
+  workspaces: WorkspaceSummary[]
+  onOwnerNameSave: (name: string) => Promise<void>
+  onWorkspaceRename: (name: string) => Promise<void>
+  onWorkspaceArchive: () => Promise<void>
+  onWorkspaceRestore: (workspaceId: string) => Promise<void>
+  onCreateWorkspace: () => void
   onSaved: () => void
   onRemoved: () => void
 }) {
+  const [ownerNameDraft, setOwnerNameDraft] = useState(ownerName)
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState(activeWorkspace.name)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [workspaceSaving, setWorkspaceSaving] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  const [archivedWorkspaces, setArchivedWorkspaces] = useState<WorkspaceSummary[]>([])
   const [token, setToken] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -625,6 +747,16 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
   const [mcpLoading, setMcpLoading] = useState(true)
   const [mcpSaving, setMcpSaving] = useState(false)
   const [mcpError, setMcpError] = useState<string | null>(null)
+
+  useEffect(() => setOwnerNameDraft(ownerName), [ownerName])
+  useEffect(() => setWorkspaceNameDraft(activeWorkspace.name), [activeWorkspace.id, activeWorkspace.name])
+  useEffect(() => {
+    let active = true
+    void window.dayplan.listWorkspaces(true)
+      .then((items) => { if (active) setArchivedWorkspaces(items.filter((workspace) => workspace.archivedAt !== null)) })
+      .catch((caught: unknown) => { if (active) setWorkspaceError(caught instanceof Error ? caught.message : 'Archived workspaces could not be loaded.') })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -703,8 +835,76 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
     }
   }
 
+  async function saveProfile(): Promise<void> {
+    setProfileSaving(true)
+    setProfileError(null)
+    try {
+      await onOwnerNameSave(ownerNameDraft)
+    } catch (caught) {
+      setProfileError(caught instanceof Error ? caught.message : 'Your profile could not be saved.')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  async function renameWorkspace(): Promise<void> {
+    setWorkspaceSaving(true)
+    setWorkspaceError(null)
+    try {
+      await onWorkspaceRename(workspaceNameDraft)
+    } catch (caught) {
+      setWorkspaceError(caught instanceof Error ? caught.message : 'The workspace could not be renamed.')
+    } finally {
+      setWorkspaceSaving(false)
+    }
+  }
+
+  async function archiveWorkspace(): Promise<void> {
+    if (!window.confirm(`Archive “${activeWorkspace.name}”? Its local focus history will stay saved. Tasks in Todoist will not be deleted.`)) return
+    setWorkspaceSaving(true)
+    setWorkspaceError(null)
+    try {
+      await onWorkspaceArchive()
+      const allWorkspaces = await window.dayplan.listWorkspaces(true)
+      setArchivedWorkspaces(allWorkspaces.filter((workspace) => workspace.archivedAt !== null))
+    } catch (caught) {
+      setWorkspaceError(caught instanceof Error ? caught.message : 'The workspace could not be archived.')
+    } finally {
+      setWorkspaceSaving(false)
+    }
+  }
+
+  async function restoreWorkspace(workspace: WorkspaceSummary): Promise<void> {
+    setWorkspaceSaving(true)
+    setWorkspaceError(null)
+    try {
+      await onWorkspaceRestore(workspace.id)
+      setArchivedWorkspaces((items) => items.filter((item) => item.id !== workspace.id))
+    } catch (caught) {
+      setWorkspaceError(caught instanceof Error ? caught.message : 'The workspace could not be restored.')
+    } finally {
+      setWorkspaceSaving(false)
+    }
+  }
+
   return <>
     <PageHeading eyebrow="Preferences" title="Settings" description="Make Dayplan feel right for you and manage your connection." />
+    <Card className="mb-5 max-w-[760px]">
+      <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><UserRound size={15} /></span>Owner profile</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Your name appears in Dayplan and is shared by all of your workspaces. This profile stays on this device.</p></div></CardHeader>
+      <CardContent><div className="flex flex-col gap-2 sm:flex-row"><Input aria-label="Owner name" maxLength={80} value={ownerNameDraft} onChange={(event) => setOwnerNameDraft(event.target.value)} placeholder="Your name" /><Button disabled={profileSaving || !ownerNameDraft.trim() || ownerNameDraft.trim() === ownerName} onClick={() => void saveProfile()}>{profileSaving ? <LoaderCircle size={14} className="animate-spin" /> : null}Save name</Button></div>{profileError && <p role="alert" className="mt-3 text-xs text-rose-600 dark:text-rose-300">{profileError}</p>}</CardContent>
+    </Card>
+    <Card className="mb-5 max-w-[760px]">
+      <CardHeader className="flex-wrap items-center"><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><FolderKanban size={15} /></span>Workspaces</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Each workspace keeps its own Todoist connection and focus history. Archive keeps local history and never deletes Todoist tasks.</p></div><Button size="sm" variant="outline" onClick={onCreateWorkspace}><Plus size={14} />Create workspace</Button></CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="rounded-xl border border-border/70 p-3.5">
+          <div className="mb-2 text-xs font-semibold">Current workspace</div>
+          <div className="flex flex-col gap-2 sm:flex-row"><Input aria-label="Workspace name" maxLength={80} value={workspaceNameDraft} onChange={(event) => setWorkspaceNameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && workspaceNameDraft.trim()) void renameWorkspace() }} /><Button variant="secondary" disabled={workspaceSaving || !workspaceNameDraft.trim()} onClick={() => void renameWorkspace()}>{workspaceSaving ? <LoaderCircle size={14} className="animate-spin" /> : null}Rename</Button><Button variant="ghost" className="text-muted-foreground" disabled={workspaceSaving || workspaces.length <= 1} onClick={() => void archiveWorkspace()}>Archive</Button></div>
+          {workspaces.length <= 1 && <p className="mt-2 text-[11px] text-muted-foreground">Create another workspace before archiving this one.</p>}
+        </div>
+        {archivedWorkspaces.length > 0 && <div><div className="mb-2 text-xs font-semibold">Archived workspaces</div><div className="divide-y divide-border rounded-xl border border-border/70">{archivedWorkspaces.map((workspace) => <div key={workspace.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5"><span className="truncate text-xs">{workspace.name}</span><Button size="sm" variant="outline" disabled={workspaceSaving} onClick={() => void restoreWorkspace(workspace)}>Restore</Button></div>)}</div></div>}
+        {workspaceError && <p role="alert" className="text-xs text-rose-600 dark:text-rose-300">{workspaceError}</p>}
+      </CardContent>
+    </Card>
     <Card className="mb-5 max-w-[760px]">
       <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><Sun size={15} /></span>Appearance</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Choose how Dayplan looks on this device.</p></div></CardHeader>
       <CardContent>
@@ -748,11 +948,11 @@ function SettingsPage({ configured, appearance, onAppearanceChange, onSaved, onR
       </CardContent>
     </Card>
     <Card className="max-w-[760px]">
-      <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300"><CheckCircle2 size={15} /></span>Todoist connection</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Connect your Todoist account to sync tasks, projects, priorities, and due dates. Your token stays on this computer.</p></div><Badge className={configured ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300' : ''}><span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${configured ? 'bg-emerald-500' : 'bg-slate-400'}`} />{configured ? 'Connected' : 'Not connected'}</Badge></CardHeader>
+      <CardHeader><div><CardTitle className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300"><CheckCircle2 size={15} /></span>Todoist connection · {activeWorkspace.name}</CardTitle><p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Connect Todoist for this workspace to sync its tasks, projects, priorities, and due dates. The token is stored separately for this workspace. Reusing the same Todoist account in another workspace shows that account’s same remote tasks there.</p></div><Badge className={configured ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300' : ''}><span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${configured ? 'bg-emerald-500' : 'bg-slate-400'}`} />{configured ? 'Connected' : 'Not connected'}</Badge></CardHeader>
       <CardContent>
         <label htmlFor="todoist-token" className="mb-2 block text-xs font-semibold">Todoist API token</label>
         <div className="flex flex-col gap-2 sm:flex-row"><Input id="todoist-token" type="password" autoComplete="off" placeholder={configured ? 'Paste a new token to replace the saved one' : 'Paste your API token'} value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && token.trim()) void save() }} /><Button disabled={saving || !token.trim()} onClick={() => void save()}>{saving ? <LoaderCircle size={15} className="animate-spin" /> : null}{saving ? 'Saving…' : configured ? 'Replace token' : 'Save token'}</Button></div>
-        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Find the token in Todoist → Settings → Integrations → Developer. It is saved in this app’s local SQLite settings.</p>
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Find the token in Todoist → Settings → Integrations → Developer. It is saved in this workspace’s local SQLite settings.</p>
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
           <Button size="sm" variant="secondary" disabled={!configured || testing} onClick={() => void testConnection()}>{testing ? <LoaderCircle size={14} className="animate-spin" /> : <ShieldCheck size={14} />}{testing ? 'Checking…' : 'Test connection'}</Button>
           {configured && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => void removeToken()}><LogOut size={14} />Remove token</Button>}

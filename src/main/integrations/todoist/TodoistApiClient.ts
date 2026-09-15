@@ -26,11 +26,11 @@ export class TodoistApiClient {
     private readonly request: typeof fetch = fetch,
   ) {}
 
-  async testConnection(): Promise<void> {
-    await this.listTasks({ limit: 1 })
+  async testConnection(workspaceId: string, candidateToken?: string): Promise<void> {
+    await this.listTasks(workspaceId, { limit: 1 }, candidateToken)
   }
 
-  async listTasks(options: { limit?: number; project_id?: string } = {}): Promise<TodoistTask[]> {
+  async listTasks(workspaceId: string, options: { limit?: number; project_id?: string } = {}, candidateToken?: string): Promise<TodoistTask[]> {
     const limit = Math.min(Math.max(options.limit ?? 200, 1), 5000)
     const tasks: TodoistTask[] = []
     let cursor: string | null = null
@@ -41,7 +41,7 @@ export class TodoistApiClient {
       url.searchParams.set('limit', String(Math.min(200, limit - tasks.length)))
       if (options.project_id) url.searchParams.set('project_id', options.project_id)
       if (cursor) url.searchParams.set('cursor', cursor)
-      const page = await this.get<Page<TodoistTask>>(url)
+      const page = await this.get<Page<TodoistTask>>(url, workspaceId, candidateToken)
       tasks.push(...page.results)
       cursor = page.next_cursor
       if (cursor && seenCursors.has(cursor)) throw new TodoistApiError('Todoist returned invalid pagination data.')
@@ -51,19 +51,19 @@ export class TodoistApiClient {
     return tasks.slice(0, limit)
   }
 
-  async getTask(taskId: string): Promise<TodoistTask> {
-    return this.get<TodoistTask>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}`)
+  async getTask(workspaceId: string, taskId: string): Promise<TodoistTask> {
+    return this.get<TodoistTask>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}`, workspaceId)
   }
 
-  async listProjects(): Promise<TodoistProject[]> {
-    return this.getAllPages<TodoistProject>('/projects')
+  async listProjects(workspaceId: string): Promise<TodoistProject[]> {
+    return this.getAllPages<TodoistProject>('/projects', workspaceId)
   }
 
-  async listLabels(): Promise<TodoistLabel[]> {
-    return this.getAllPages<TodoistLabel>('/labels')
+  async listLabels(workspaceId: string): Promise<TodoistLabel[]> {
+    return this.getAllPages<TodoistLabel>('/labels', workspaceId)
   }
 
-  async createTask(draft: TaskDraft): Promise<TodoistTask> {
+  async createTask(workspaceId: string, draft: TaskDraft): Promise<TodoistTask> {
     const body: Record<string, unknown> = {
       content: draft.content.trim(),
       description: draft.description?.trim() ?? '',
@@ -72,32 +72,32 @@ export class TodoistApiClient {
     }
     if (draft.project_id) body.project_id = draft.project_id
     if (draft.due_date) body.due_date = draft.due_date
-    return this.send<TodoistTask>(`${this.baseUrl}/tasks`, 'POST', body)
+    return this.send<TodoistTask>(`${this.baseUrl}/tasks`, 'POST', workspaceId, body)
   }
 
-  async updateTask(taskId: string, patch: TaskPatch): Promise<TodoistTask> {
+  async updateTask(workspaceId: string, taskId: string, patch: TaskPatch): Promise<TodoistTask> {
     const body: Record<string, unknown> = {}
     if (patch.content !== undefined) body.content = patch.content.trim()
     if (patch.description !== undefined) body.description = patch.description.trim()
     if (patch.due_date !== undefined) body.due_date = patch.due_date
     if (patch.priority !== undefined) body.priority = patch.priority
     if (patch.labels !== undefined) body.labels = patch.labels
-    return this.send<TodoistTask>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}`, 'POST', body)
+    return this.send<TodoistTask>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}`, 'POST', workspaceId, body)
   }
 
-  async completeTask(taskId: string): Promise<void> {
-    await this.send<void>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}/close`, 'POST')
+  async completeTask(workspaceId: string, taskId: string): Promise<void> {
+    await this.send<void>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}/close`, 'POST', workspaceId)
   }
 
-  async reopenTask(taskId: string): Promise<void> {
-    await this.send<void>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}/reopen`, 'POST')
+  async reopenTask(workspaceId: string, taskId: string): Promise<void> {
+    await this.send<void>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}/reopen`, 'POST', workspaceId)
   }
 
-  async deleteTask(taskId: string): Promise<void> {
-    await this.send<void>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}`, 'DELETE')
+  async deleteTask(workspaceId: string, taskId: string): Promise<void> {
+    await this.send<void>(`${this.baseUrl}/tasks/${encodeURIComponent(taskId)}`, 'DELETE', workspaceId)
   }
 
-  async listCompletedTasks(since: string, until: string): Promise<TodoistTask[]> {
+  async listCompletedTasks(workspaceId: string, since: string, until: string): Promise<TodoistTask[]> {
     const tasks: TodoistTask[] = []
     let cursor: string | null = null
     const seenCursors = new Set<string>()
@@ -107,7 +107,7 @@ export class TodoistApiClient {
       url.searchParams.set('until', until)
       url.searchParams.set('limit', '200')
       if (cursor) url.searchParams.set('cursor', cursor)
-      const page = await this.get<CompletedTasksPage<TodoistTask>>(url)
+      const page = await this.get<CompletedTasksPage<TodoistTask>>(url, workspaceId)
       tasks.push(...page.items)
       cursor = page.next_cursor
       if (cursor && seenCursors.has(cursor)) throw new TodoistApiError('Todoist returned invalid pagination data.')
@@ -116,7 +116,7 @@ export class TodoistApiClient {
     return tasks
   }
 
-  private async getAllPages<T>(path: string): Promise<T[]> {
+  private async getAllPages<T>(path: string, workspaceId: string): Promise<T[]> {
     const items: T[] = []
     let cursor: string | null = null
     const seenCursors = new Set<string>()
@@ -124,7 +124,7 @@ export class TodoistApiClient {
       const url = new URL(`${this.baseUrl}${path}`)
       url.searchParams.set('limit', '200')
       if (cursor) url.searchParams.set('cursor', cursor)
-      const page = await this.get<Page<T>>(url)
+      const page = await this.get<Page<T>>(url, workspaceId)
       items.push(...page.results)
       cursor = page.next_cursor
       if (cursor && seenCursors.has(cursor)) throw new TodoistApiError('Todoist returned invalid pagination data.')
@@ -133,12 +133,12 @@ export class TodoistApiClient {
     return items
   }
 
-  private async get<T>(url: URL | string): Promise<T> {
-    return this.send<T>(url, 'GET')
+  private async get<T>(url: URL | string, workspaceId: string, candidateToken?: string): Promise<T> {
+    return this.send<T>(url, 'GET', workspaceId, undefined, candidateToken)
   }
 
-  private async send<T>(url: URL | string, method: string, body?: unknown): Promise<T> {
-    const token = await this.credentialService.readTodoistToken()
+  private async send<T>(url: URL | string, method: string, workspaceId: string, body?: unknown, candidateToken?: string): Promise<T> {
+    const token = candidateToken ?? await this.credentialService.readTodoistToken(workspaceId)
     if (!token) throw new TodoistApiError('Add your Todoist API token in Settings.')
 
     let response: Response

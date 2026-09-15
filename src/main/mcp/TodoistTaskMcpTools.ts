@@ -3,6 +3,7 @@ import * as z from 'zod/v4'
 import type { TaskApplicationService } from '../tasks/TaskApplicationService'
 import type { TodoistDeleteApprovalService } from './TodoistDeleteApprovalService'
 import type { TaskDraft, TaskPatch } from '../../shared/domain'
+import type { WorkspaceApplicationService } from '../workspaces/WorkspaceApplicationService'
 
 const TaskSchema = z.object({
   id: z.string(),
@@ -16,6 +17,7 @@ const TaskSchema = z.object({
 
 const TaskListSchema = z.array(TaskSchema)
 const CompletedTaskRangeSchema = z.object({
+  workspace_id: z.string().uuid(),
   since: z.iso.datetime(),
   until: z.iso.datetime(),
 }).strict().refine(({ since, until }) => {
@@ -41,56 +43,74 @@ const CompletedTaskRangeSchema = z.object({
 }, 'The completion date range must be positive and no longer than three calendar months.')
 const ProjectSchema = z.object({ id: z.string(), name: z.string(), is_inbox_project: z.boolean() }).passthrough()
 const LabelSchema = z.object({ name: z.string() }).passthrough()
-const TaskIdSchema = z.object({ task_id: z.string().min(1).max(128) }).strict()
+const TaskIdSchema = z.object({ workspace_id: z.string().uuid(), task_id: z.string().min(1).max(128) }).strict()
 
 export class TodoistTaskMcpTools {
   constructor(
     private readonly taskService: TaskApplicationService,
     private readonly deleteApprovalService: TodoistDeleteApprovalService,
+    private readonly workspaceService: WorkspaceApplicationService,
   ) {}
 
   register(server: McpServer): void {
     server.registerTool('todoist_list_tasks', {
-      description: 'List up to 100 active Todoist tasks. Optionally filter by a Todoist project ID.',
+      description: 'List up to 100 active tasks from the specified workspace. Optionally filter by Todoist project ID.',
       inputSchema: z.object({
+        workspace_id: z.string().uuid(),
         limit: z.number().int().min(1).max(100).optional(),
         project_id: z.string().min(1).max(128).optional(),
       }).strict(),
       outputSchema: z.object({ tasks: TaskListSchema }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async ({ limit, project_id }) => this.result({ tasks: await this.taskService.listTasks({ limit: limit ?? 100, ...(project_id ? { project_id } : {}) }) }))
+    }, async ({ workspace_id, limit, project_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result({ tasks: await this.taskService.listTasks(workspace_id, { limit: limit ?? 100, ...(project_id ? { project_id } : {}) }) })
+    })
 
     server.registerTool('todoist_list_completed_tasks', {
       description: 'List completed Todoist tasks by completion time for a requested date-time range. since is inclusive and until is exclusive; ranges may be up to three calendar months. Use UTC ISO-8601 timestamps such as 2026-09-14T00:00:00Z for a day. Results are paginated fully by Todoist.',
       inputSchema: CompletedTaskRangeSchema,
       outputSchema: z.object({ tasks: TaskListSchema }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async ({ since, until }) => this.result({ tasks: await this.taskService.listCompletedTasks(since, until) }))
+    }, async ({ workspace_id, since, until }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result({ tasks: await this.taskService.listCompletedTasks(workspace_id, since, until) })
+    })
 
     server.registerTool('todoist_get_task', {
       description: 'Get an active task by its exact task_id. IDs are opaque; discover them with todoist_list_tasks.',
       inputSchema: TaskIdSchema,
       outputSchema: TaskSchema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async ({ task_id }) => this.result(await this.taskService.getTask(task_id)))
+    }, async ({ workspace_id, task_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result(await this.taskService.getTask(workspace_id, task_id))
+    })
 
     server.registerTool('todoist_list_projects', {
       description: 'List Todoist projects, including Inbox, to resolve project names to IDs.',
-      inputSchema: z.object({}).strict(),
+      inputSchema: z.object({ workspace_id: z.string().uuid() }).strict(),
       outputSchema: z.object({ projects: z.array(ProjectSchema) }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async () => this.result({ projects: await this.taskService.listProjects() }))
+    }, async ({ workspace_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result({ projects: await this.taskService.listProjects(workspace_id) })
+    })
 
     server.registerTool('todoist_list_labels', {
       description: 'List Todoist labels so requested labels can be resolved by exact name.',
-      inputSchema: z.object({}).strict(),
+      inputSchema: z.object({ workspace_id: z.string().uuid() }).strict(),
       outputSchema: z.object({ labels: z.array(LabelSchema) }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    }, async () => this.result({ labels: await this.taskService.listLabels() }))
+    }, async ({ workspace_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result({ labels: await this.taskService.listLabels(workspace_id) })
+    })
 
     server.registerTool('todoist_create_task', {
       description: 'Create one task in Todoist immediately. If project_id is omitted, Todoist places it in Inbox.',
       inputSchema: z.object({
+        workspace_id: z.string().uuid(),
         content: z.string().trim().min(1).max(500),
         description: z.string().max(5000).optional(),
         project_id: z.string().min(1).max(128).optional(),
@@ -100,11 +120,15 @@ export class TodoistTaskMcpTools {
       }).strict(),
       outputSchema: TaskSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    }, async (input) => this.result(await this.taskService.createTask(input as TaskDraft)))
+    }, async ({ workspace_id, ...input }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result(await this.taskService.createTask(workspace_id, input as TaskDraft))
+    })
 
     server.registerTool('todoist_update_task', {
       description: 'Update only supplied fields on one active Todoist task immediately. Set due_date to null to clear its due date.',
       inputSchema: z.object({
+        workspace_id: z.string().uuid(),
         task_id: z.string().min(1).max(128),
         content: z.string().trim().min(1).max(500).optional(),
         description: z.string().max(5000).optional(),
@@ -114,31 +138,41 @@ export class TodoistTaskMcpTools {
       }).strict().refine(({ task_id: _taskId, ...patch }) => Object.keys(patch).length > 0, 'At least one field is required.'),
       outputSchema: TaskSchema,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    }, async ({ task_id, ...patch }) => this.result(await this.taskService.updateTask(task_id, patch as TaskPatch)))
+    }, async ({ workspace_id, task_id, ...patch }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result(await this.taskService.updateTask(workspace_id, task_id, patch as TaskPatch))
+    })
 
     server.registerTool('todoist_complete_task', {
       description: 'Complete one active Todoist task immediately.',
       inputSchema: TaskIdSchema,
       outputSchema: z.object({ completed: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    }, async ({ task_id }) => this.result(await this.taskService.completeTask(task_id)))
+    }, async ({ workspace_id, task_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result(await this.taskService.completeTask(workspace_id, task_id))
+    })
 
     server.registerTool('todoist_reopen_task', {
       description: 'Reopen one completed Todoist task by ID immediately.',
       inputSchema: TaskIdSchema,
       outputSchema: z.object({ reopened: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    }, async ({ task_id }) => this.result(await this.taskService.reopenTask(task_id)))
+    }, async ({ workspace_id, task_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
+      return this.result(await this.taskService.reopenTask(workspace_id, task_id))
+    })
 
     server.registerTool('todoist_delete_task', {
       description: 'Permanently delete one task and all of its subtasks. Requires Dayplan confirmation.',
       inputSchema: TaskIdSchema,
       outputSchema: z.object({ deleted: z.literal(true), subtasks_also_deleted: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-    }, async ({ task_id }) => {
+    }, async ({ workspace_id, task_id }) => {
+      this.workspaceService.assertUsableWorkspace(workspace_id)
       const approved = await this.deleteApprovalService.confirmTaskDeletion(task_id)
       if (!approved) return { content: [{ type: 'text' as const, text: 'The user cancelled task deletion.' }], isError: true }
-      return this.result(await this.taskService.deleteTask(task_id))
+      return this.result(await this.taskService.deleteTask(workspace_id, task_id))
     })
   }
 

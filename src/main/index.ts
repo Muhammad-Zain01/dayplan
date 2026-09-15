@@ -41,8 +41,9 @@ if (!isMcpProcess) {
 function createMcpServer(services: AppServices): McpServer {
   const server = new McpServer({ name: 'Dayplan', version: app.getVersion() })
   services.mcpTools.register(server)
+  services.workspaceMcpTools.register(server)
   if (focusTimerService) {
-    new FocusTimerMcpTools(focusTimerService, services.focusDashboardService).register(server)
+    new FocusTimerMcpTools(focusTimerService, services.focusDashboardService, services.workspaceService).register(server)
   }
   return server
 }
@@ -54,7 +55,7 @@ async function startApplication(): Promise<void> {
   const focusNotifier = new FocusNotificationService(() => {
     mainWindow?.show()
     mainWindow?.focus()
-  })
+  }, (workspaceId) => services.workspaceService.getWorkspace(workspaceId).name)
   focusTimerService = new FocusTimerService(services.focusSessionRepository, focusNotifier)
   powerMonitor.on('suspend', () => focusTimerService?.handleSystemSuspend())
   const createServer = (): McpServer => createMcpServer(services)
@@ -74,7 +75,7 @@ async function startApplication(): Promise<void> {
   const trayIconPath = app.isPackaged
     ? join(process.resourcesPath, process.platform === 'darwin' ? 'dayplan-trayTemplate.png' : 'dayplan-tray.ico')
     : join(app.getAppPath(), 'assets/branding', process.platform === 'darwin' ? 'dayplan-trayTemplate.png' : 'dayplan-tray.ico')
-  focusTrayController = new FocusTrayController(trayIconPath, focusTimerService, () => {
+  focusTrayController = new FocusTrayController(trayIconPath, focusTimerService, services.workspaceService, () => {
     mainWindow?.show()
     mainWindow?.focus()
   })
@@ -115,6 +116,7 @@ async function startApplication(): Promise<void> {
     focusTimerService,
     services.focusDashboardService,
     focusNotifier,
+    services.workspaceService,
   ).register(mainWindow)
   mainWindow.on('close', (event) => {
     if (isQuitting) return

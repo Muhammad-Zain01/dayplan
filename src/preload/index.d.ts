@@ -1,4 +1,4 @@
-import type { AppearanceMode, DashboardMetrics, FocusDashboardMetrics, FocusTimerPreferences, FocusTimerSnapshot, McpHttpStatus, TaskDraft, TaskPatch, TodoistLabel, TodoistProject, TodoistTask } from '../shared/domain'
+import type { AppearanceMode, DashboardMetrics, FocusDashboardMetrics, FocusTimerPreferences, FocusTimerSnapshot, McpHttpStatus, OwnerProfile, TaskDraft, TaskPatch, TodoistLabel, TodoistProject, TodoistTask, WorkspaceSetupStatus, WorkspaceSummary } from '../shared/domain'
 
 declare global {
   interface Window {
@@ -31,9 +31,21 @@ declare global {
       testNotification(): Promise<{ shown: true }>
       saveTodoistToken(token: string): Promise<void>
       removeTodoistToken(): Promise<void>
-      testTodoistConnection(): Promise<{ connected: true }>
+      testTodoistConnection(candidateToken?: string): Promise<{ connected: true }>
       getMcpHttpStatus(): Promise<McpHttpStatus>
       setMcpHttpEnabled(enabled: boolean): Promise<McpHttpStatus>
+      listWorkspaces(includeArchived?: boolean): Promise<WorkspaceSummary[]>
+      getWorkspaceSetupStatus(): Promise<WorkspaceSetupStatus>
+      getOwnerProfile(): Promise<OwnerProfile>
+      setOwnerName(name: string): Promise<OwnerProfile>
+      saveInitialIdentity(ownerName: string, workspaceName: string): Promise<void>
+      completeInitialSetup(): Promise<void>
+      completeWorkspaceSetup(workspaceId: string): Promise<void>
+      createWorkspace(name: string): Promise<WorkspaceSummary>
+      renameWorkspace(workspaceId: string, name: string): Promise<WorkspaceSummary>
+      archiveWorkspace(workspaceId: string): Promise<{ archived: true; activeWorkspaceId: string }>
+      restoreWorkspace(workspaceId: string): Promise<WorkspaceSummary>
+      selectWorkspace(workspaceId: string): Promise<WorkspaceSummary>
     }
   }
 }

@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardService } from './DashboardService'
 import type { TodoistTask } from '../../shared/domain'
 
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
+
 describe('DashboardService', () => {
   afterEach(() => vi.useRealTimers())
 
@@ -23,13 +25,14 @@ describe('DashboardService', () => {
     }
     const dashboard = new DashboardService(taskService as never)
 
-    const result = await dashboard.getMetrics()
+    const result = await dashboard.getMetrics(WORKSPACE_ID)
 
     expect(result.openTasks).toBe(3)
     expect(result.dueToday).toBe(1)
     expect(result.overdue).toBe(1)
     expect(result.completedToday).toBe(1)
     expect(taskService.listCompletedTasks).toHaveBeenCalledWith(
+      WORKSPACE_ID,
       new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29).toISOString(),
       new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString(),
     )

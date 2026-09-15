@@ -4,11 +4,12 @@ import { FocusTimerMcpTools } from './FocusTimerMcpTools'
 
 type ToolResult = { content: Array<{ type: string; text: string }>; isError?: boolean; structuredContent?: Record<string, unknown> }
 type ToolHandler = (input: Record<string, unknown>) => Promise<ToolResult>
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
 
 describe('FocusTimerMcpTools', () => {
   it('registers the timer state, statistics, and control tools', () => {
     const harness = createHarness()
-    const tools = new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never)
+    const tools = new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never, harness.workspaceService as never)
     tools.register(harness.server)
 
     expect([...harness.handlers.keys()]).toEqual([
@@ -25,43 +26,43 @@ describe('FocusTimerMcpTools', () => {
 
   it('serves daily statistics', async () => {
     const harness = createHarness()
-    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never).register(harness.server)
+    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never, harness.workspaceService as never).register(harness.server)
 
-    const result = await harness.handlers.get('focus_get_daily_stats')?.({ days: 7 })
+    const result = await harness.handlers.get('focus_get_daily_stats')?.({ workspace_id: WORKSPACE_ID, days: 7 })
 
     expect(result?.structuredContent).toMatchObject({ todaySeconds: 900, todayCompletedSessions: 1 })
-    expect(harness.dashboard.getMetrics).toHaveBeenCalledWith(7)
+    expect(harness.dashboard.getMetrics).toHaveBeenCalledWith(WORKSPACE_ID, 7)
   })
 
   it('starts a focus timer immediately', async () => {
     const harness = createHarness()
-    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never).register(harness.server)
+    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never, harness.workspaceService as never).register(harness.server)
 
-    const result = await harness.handlers.get('focus_timer_start_focus')?.({ duration_minutes: 30 })
+    const result = await harness.handlers.get('focus_timer_start_focus')?.({ workspace_id: WORKSPACE_ID, duration_minutes: 30 })
 
-    expect(harness.timer.startFocus).toHaveBeenCalledWith(30)
+    expect(harness.timer.startFocus).toHaveBeenCalledWith(WORKSPACE_ID, 30)
     expect(result?.structuredContent).toMatchObject({ status: 'running', targetSeconds: 3600 })
   })
 
   it('starts, pauses, resumes, adjusts, and ends timers without application approval', async () => {
     const harness = createHarness()
-    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never).register(harness.server)
+    new FocusTimerMcpTools(harness.timer as never, harness.dashboard as never, harness.workspaceService as never).register(harness.server)
 
-    await harness.handlers.get('focus_timer_start_focus')?.({ duration_minutes: 45 })
-    await harness.handlers.get('focus_timer_start_break')?.({ duration_minutes: 17 })
-    await harness.handlers.get('focus_timer_set_remaining')?.({ remaining_minutes: 12 })
-    await harness.handlers.get('focus_timer_pause')?.({})
-    await harness.handlers.get('focus_timer_resume')?.({})
-    await harness.handlers.get('focus_timer_end')?.({})
+    await harness.handlers.get('focus_timer_start_focus')?.({ workspace_id: WORKSPACE_ID, duration_minutes: 45 })
+    await harness.handlers.get('focus_timer_start_break')?.({ workspace_id: WORKSPACE_ID, duration_minutes: 17 })
+    await harness.handlers.get('focus_timer_set_remaining')?.({ workspace_id: WORKSPACE_ID, remaining_minutes: 12 })
+    await harness.handlers.get('focus_timer_pause')?.({ workspace_id: WORKSPACE_ID })
+    await harness.handlers.get('focus_timer_resume')?.({ workspace_id: WORKSPACE_ID })
+    await harness.handlers.get('focus_timer_end')?.({ workspace_id: WORKSPACE_ID })
 
-    expect(harness.timer.startFocus).toHaveBeenCalledWith(45)
-    expect(harness.timer.startBreak).toHaveBeenCalledWith(17)
-    expect(harness.timer.setRemainingMinutes).toHaveBeenCalledWith(12)
+    expect(harness.timer.startFocus).toHaveBeenCalledWith(WORKSPACE_ID, 45)
+    expect(harness.timer.startBreak).toHaveBeenCalledWith(WORKSPACE_ID, 17)
+    expect(harness.timer.setRemainingMinutes).toHaveBeenCalledWith(WORKSPACE_ID, 12)
   })
 
   function createHarness() {
     const snapshot = {
-      sessionId: 'session-1', kind: 'focus', status: 'running', targetSeconds: 3600,
+      sessionId: 'session-1', workspaceId: WORKSPACE_ID, kind: 'focus', status: 'running', targetSeconds: 3600,
       elapsedSeconds: 0, remainingSeconds: 3600, updatedAt: '2026-01-01T00:00:00.000Z',
     }
     const handlers = new Map<string, ToolHandler>()
@@ -80,6 +81,7 @@ describe('FocusTimerMcpTools', () => {
     const dashboard = {
       getMetrics: vi.fn(() => ({ todaySeconds: 900, todayCompletedSessions: 1, recentFocusTime: [], refreshedAt: snapshot.updatedAt })),
     }
-    return { server, handlers, timer, dashboard }
+    const workspaceService = { assertUsableWorkspace: vi.fn() }
+    return { server, handlers, timer, dashboard, workspaceService }
   }
 })

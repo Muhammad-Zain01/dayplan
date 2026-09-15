@@ -4,34 +4,40 @@ import type { TodoistApiClient } from '../integrations/todoist/TodoistApiClient'
 export class TaskApplicationService {
   constructor(private readonly todoistApiClient: TodoistApiClient) {}
 
-  listTasks(options: { limit?: number; project_id?: string } = {}): Promise<TodoistTask[]> {
-    return this.todoistApiClient.listTasks(options)
+  listTasks(workspaceId: string, options: { limit?: number; project_id?: string } = {}): Promise<TodoistTask[]> {
+    this.validateWorkspaceId(workspaceId)
+    return this.todoistApiClient.listTasks(workspaceId, options)
   }
 
-  getTask(taskId: string): Promise<TodoistTask> {
+  getTask(workspaceId: string, taskId: string): Promise<TodoistTask> {
+    this.validateWorkspaceId(workspaceId)
     this.validateTaskId(taskId)
-    return this.todoistApiClient.getTask(taskId)
+    return this.todoistApiClient.getTask(workspaceId, taskId)
   }
 
-  listProjects(): Promise<TodoistProject[]> {
-    return this.todoistApiClient.listProjects()
+  listProjects(workspaceId: string): Promise<TodoistProject[]> {
+    this.validateWorkspaceId(workspaceId)
+    return this.todoistApiClient.listProjects(workspaceId)
   }
 
-  listLabels(): Promise<TodoistLabel[]> {
-    return this.todoistApiClient.listLabels()
+  listLabels(workspaceId: string): Promise<TodoistLabel[]> {
+    this.validateWorkspaceId(workspaceId)
+    return this.todoistApiClient.listLabels(workspaceId)
   }
 
-  async createTask(draft: TaskDraft): Promise<TodoistTask> {
+  async createTask(workspaceId: string, draft: TaskDraft): Promise<TodoistTask> {
+    this.validateWorkspaceId(workspaceId)
     const content = draft.content.trim()
     if (!content || content.length > 500) throw new Error('Task name must be between 1 and 500 characters.')
     if ((draft.description?.length ?? 0) > 5000) throw new Error('Description must be 5,000 characters or less.')
     this.validatePriority(draft.priority)
     this.validateDate(draft.due_date)
     this.validateLabels(draft.labels)
-    return this.todoistApiClient.createTask({ ...draft, content })
+    return this.todoistApiClient.createTask(workspaceId, { ...draft, content })
   }
 
-  async updateTask(taskId: string, patch: TaskPatch): Promise<TodoistTask> {
+  async updateTask(workspaceId: string, taskId: string, patch: TaskPatch): Promise<TodoistTask> {
+    this.validateWorkspaceId(workspaceId)
     this.validateTaskId(taskId)
     if (Object.keys(patch).length === 0) throw new Error('Provide at least one field to update.')
     if (patch.content !== undefined && (!patch.content.trim() || patch.content.length > 500)) {
@@ -43,30 +49,34 @@ export class TaskApplicationService {
     this.validatePriority(patch.priority)
     this.validateDate(patch.due_date)
     this.validateLabels(patch.labels)
-    return this.todoistApiClient.updateTask(taskId, patch)
+    return this.todoistApiClient.updateTask(workspaceId, taskId, patch)
   }
 
-  async completeTask(taskId: string): Promise<{ completed: true }> {
+  async completeTask(workspaceId: string, taskId: string): Promise<{ completed: true }> {
+    this.validateWorkspaceId(workspaceId)
     this.validateTaskId(taskId)
-    await this.todoistApiClient.completeTask(taskId)
+    await this.todoistApiClient.completeTask(workspaceId, taskId)
     return { completed: true }
   }
 
-  async reopenTask(taskId: string): Promise<{ reopened: true }> {
+  async reopenTask(workspaceId: string, taskId: string): Promise<{ reopened: true }> {
+    this.validateWorkspaceId(workspaceId)
     this.validateTaskId(taskId)
-    await this.todoistApiClient.reopenTask(taskId)
+    await this.todoistApiClient.reopenTask(workspaceId, taskId)
     return { reopened: true }
   }
 
-  async deleteTask(taskId: string): Promise<{ deleted: true; subtasks_also_deleted: true }> {
+  async deleteTask(workspaceId: string, taskId: string): Promise<{ deleted: true; subtasks_also_deleted: true }> {
+    this.validateWorkspaceId(workspaceId)
     this.validateTaskId(taskId)
-    await this.todoistApiClient.deleteTask(taskId)
+    await this.todoistApiClient.deleteTask(workspaceId, taskId)
     return { deleted: true, subtasks_also_deleted: true }
   }
 
-  async listCompletedTasks(since: string, until: string): Promise<TodoistTask[]> {
+  async listCompletedTasks(workspaceId: string, since: string, until: string): Promise<TodoistTask[]> {
+    this.validateWorkspaceId(workspaceId)
     this.validateCompletionRange(since, until)
-    const tasks = await this.todoistApiClient.listCompletedTasks(since, until)
+    const tasks = await this.todoistApiClient.listCompletedTasks(workspaceId, since, until)
     return tasks.map((task) => ({ ...task, is_completed: true }))
   }
 
@@ -99,6 +109,12 @@ export class TaskApplicationService {
 
   private validateTaskId(taskId: string): void {
     if (!taskId.trim() || taskId.length > 128) throw new Error('Enter a valid Todoist task ID.')
+  }
+
+  private validateWorkspaceId(workspaceId: string): void {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(workspaceId)) {
+      throw new Error('Choose a valid workspace.')
+    }
   }
 
   private validatePriority(priority: number | undefined): void {

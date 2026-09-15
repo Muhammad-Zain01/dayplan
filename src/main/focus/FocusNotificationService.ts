@@ -5,13 +5,17 @@ import type { FocusCompletionNotifier } from './FocusTimerService'
 export class FocusNotificationService implements FocusCompletionNotifier {
   private readonly activeNotifications = new Set<Notification>()
 
-  constructor(private readonly onClick: () => void) {}
+  constructor(
+    private readonly onClick: () => void,
+    private readonly getWorkspaceName?: (workspaceId: string) => string,
+  ) {}
 
-  notifyCompletion(kind: FocusSessionKind): void {
+  notifyCompletion(kind: FocusSessionKind, workspaceId?: string): void {
     if (!Notification.isSupported()) return
     const isFocus = kind === 'focus'
+    const workspaceName = workspaceId ? this.getWorkspaceName?.(workspaceId) : undefined
     const notification = this.createAudibleNotification(
-      isFocus ? 'Focus session complete' : 'Break is over',
+      workspaceName ? `${isFocus ? 'Focus session complete' : 'Break is over'} · ${workspaceName}` : isFocus ? 'Focus session complete' : 'Break is over',
       isFocus ? 'You completed your focus block. Take a short break when you are ready.' : 'Your break is complete. Ready to focus again?',
     )
     this.activeNotifications.add(notification)

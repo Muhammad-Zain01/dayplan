@@ -4,6 +4,7 @@ import type { DailyFocusTotal, FocusDashboardMetrics, FocusSessionKind, FocusSes
 
 export interface FocusSessionRecord {
   id: string
+  workspaceId: string
   kind: FocusSessionKind
   status: FocusSessionStatus
   targetSeconds: number
@@ -21,6 +22,7 @@ export interface FocusSessionRecovery {
 
 interface FocusSessionRow {
   id: string
+  workspace_id: string
   kind: FocusSessionKind
   status: FocusSessionStatus
   target_seconds: number
@@ -39,15 +41,15 @@ interface FocusIntervalRow {
 export class FocusSessionRepository {
   constructor(private readonly database: Database.Database) {}
 
-  createSession(kind: FocusSessionKind, targetSeconds: number, startedAt: Date): FocusSessionRecord {
+  createSession(workspaceId: string, kind: FocusSessionKind, targetSeconds: number, startedAt: Date): FocusSessionRecord {
     if (!Number.isInteger(targetSeconds) || targetSeconds <= 0) throw new Error('Timer duration must be a positive number of seconds.')
     const id = randomUUID()
     const timestamp = startedAt.toISOString()
     const insert = this.database.transaction(() => {
       this.database.prepare(`
-        INSERT INTO focus_sessions (id, kind, status, target_seconds, actual_seconds, started_at, last_heartbeat_at, created_at)
-        VALUES (?, ?, 'running', ?, 0, ?, ?, ?)
-      `).run(id, kind, targetSeconds, timestamp, timestamp, timestamp)
+        INSERT INTO focus_sessions (id, workspace_id, kind, status, target_seconds, actual_seconds, started_at, last_heartbeat_at, created_at)
+        VALUES (?, ?, ?, 'running', ?, 0, ?, ?, ?)
+      `).run(id, workspaceId, kind, targetSeconds, timestamp, timestamp, timestamp)
       this.database.prepare(`
         INSERT INTO focus_intervals (id, session_id, started_at)
         VALUES (?, ?, ?)
@@ -61,7 +63,7 @@ export class FocusSessionRepository {
 
   getActiveSession(): FocusSessionRecord | null {
     const row = this.database.prepare(`
-      SELECT s.id, s.kind, s.status, s.target_seconds, s.actual_seconds, s.started_at, s.ended_at,
+      SELECT s.id, s.workspace_id, s.kind, s.status, s.target_seconds, s.actual_seconds, s.started_at, s.ended_at,
         s.last_heartbeat_at,
         (SELECT i.started_at FROM focus_intervals i WHERE i.session_id = s.id AND i.ended_at IS NULL LIMIT 1) AS active_interval_started_at
       FROM focus_sessions s WHERE s.status IN ('running', 'paused') LIMIT 1
@@ -69,12 +71,12 @@ export class FocusSessionRepository {
     return row ? this.toSession(row) : null
   }
 
-  getLatestSession(): FocusSessionRecord | null {
+  getLatestSession(workspaceId?: string): FocusSessionRecord | null {
     const row = this.database.prepare(`
-      SELECT s.id, s.kind, s.status, s.target_seconds, s.actual_seconds, s.started_at, s.ended_at,
+      SELECT s.id, s.workspace_id, s.kind, s.status, s.target_seconds, s.actual_seconds, s.started_at, s.ended_at,
         s.last_heartbeat_at, NULL AS active_interval_started_at
-      FROM focus_sessions s ORDER BY s.created_at DESC LIMIT 1
-    `).get() as FocusSessionRow | undefined
+      FROM focus_sessions s ${workspaceId ? 'WHERE s.workspace_id = ?' : ''} ORDER BY s.created_at DESC LIMIT 1
+    `).get(...(workspaceId ? [workspaceId] : [])) as FocusSessionRow | undefined
     return row ? this.toSession(row) : null
   }
 
@@ -194,7 +196,7 @@ export class FocusSessionRepository {
     return { session: this.getSession(session.id), completedDuringDowntime: false }
   }
 
-  getDashboardMetrics(days: 7 | 30, now: Date): FocusDashboardMetrics {
+  getDashboardMetrics(workspaceId: string, days: 7 | 30, now: Date): FocusDashboardMetrics {
     const firstDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1)
     const dayTotals = new Map<string, number>()
     for (let offset = 0; offset < days; offset += 1) {
@@ -205,8 +207,8 @@ export class FocusSessionRepository {
     const intervals = this.database.prepare(`
       SELECT i.started_at, i.ended_at
       FROM focus_intervals i JOIN focus_sessions s ON s.id = i.session_id
-      WHERE s.kind = 'focus' AND i.started_at < ? AND (i.ended_at IS NULL OR i.ended_at > ?)
-    `).all(this.nextLocalDay(now).toISOString(), firstDate.toISOString()) as FocusIntervalRow[]
+      WHERE s.workspace_id = ? AND s.kind = 'focus' AND i.started_at < ? AND (i.ended_at IS NULL OR i.ended_at > ?)
+    `).all(workspaceId, this.nextLocalDay(now).toISOString(), firstDate.toISOString()) as FocusIntervalRow[]
     for (const interval of intervals) {
       this.addIntervalToLocalDays(interval, firstDate, now, dayTotals)
     }
@@ -216,8 +218,8 @@ export class FocusSessionRepository {
     const tomorrowStart = this.nextLocalDay(now).toISOString()
     const count = this.database.prepare(`
       SELECT COUNT(*) AS count FROM focus_sessions
-      WHERE kind = 'focus' AND status = 'completed' AND ended_at >= ? AND ended_at < ?
-    `).get(todayStart, tomorrowStart) as { count: number }
+      WHERE workspace_id = ? AND kind = 'focus' AND status = 'completed' AND ended_at >= ? AND ended_at < ?
+    `).get(workspaceId, todayStart, tomorrowStart) as { count: number }
 
     const recentFocusTime: DailyFocusTotal[] = [...dayTotals].map(([date, seconds]) => ({ date, seconds }))
     return {
@@ -262,7 +264,7 @@ export class FocusSessionRepository {
 
   private getSession(sessionId: string): FocusSessionRecord | null {
     const row = this.database.prepare(`
-      SELECT s.id, s.kind, s.status, s.target_seconds, s.actual_seconds, s.started_at, s.ended_at,
+      SELECT s.id, s.workspace_id, s.kind, s.status, s.target_seconds, s.actual_seconds, s.started_at, s.ended_at,
         s.last_heartbeat_at,
         (SELECT i.started_at FROM focus_intervals i WHERE i.session_id = s.id AND i.ended_at IS NULL LIMIT 1) AS active_interval_started_at
       FROM focus_sessions s WHERE s.id = ?
@@ -273,6 +275,7 @@ export class FocusSessionRepository {
   private toSession(row: FocusSessionRow): FocusSessionRecord {
     return {
       id: row.id,
+      workspaceId: row.workspace_id,
       kind: row.kind,
       status: row.status,
       targetSeconds: row.target_seconds,

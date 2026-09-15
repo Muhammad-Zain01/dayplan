@@ -8,6 +8,8 @@ import { DatabaseMigrator } from '../database/DatabaseMigrator'
 import { FocusSessionRepository } from './FocusSessionRepository'
 import { FocusTimerService } from './FocusTimerService'
 
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
+
 describe('FocusTimerService', () => {
   let directory: string | null = null
   let database: DatabaseService | null = null
@@ -26,16 +28,16 @@ describe('FocusTimerService', () => {
     let now = new Date(2026, 5, 4, 9, 0, 0)
     timer = createTimer(() => now)
 
-    expect(timer.startFocus(30).targetSeconds).toBe(1_800)
+    expect(timer.startFocus(WORKSPACE_ID, 30).targetSeconds).toBe(1_800)
     now = new Date(now.getTime() + 3 * 60_000)
-    const paused = timer.pause()
+    const paused = timer.pause(WORKSPACE_ID)
     expect(paused.status).toBe('paused')
     expect(paused.elapsedSeconds).toBe(180)
 
     now = new Date(now.getTime() + 20 * 60_000)
-    timer.resume()
+    timer.resume(WORKSPACE_ID)
     now = new Date(now.getTime() + 5 * 60_000)
-    const ended = timer.endEarly()
+    const ended = timer.endEarly(WORKSPACE_ID)
     expect(ended.status).toBe('ended_early')
     expect(ended.elapsedSeconds).toBe(480)
   })
@@ -44,7 +46,7 @@ describe('FocusTimerService', () => {
     let now = new Date(2026, 5, 4, 9, 0, 0)
     const notifications: FocusSessionKind[] = []
     timer = createTimer(() => now, (kind) => notifications.push(kind))
-    timer.startFocus(30)
+    timer.startFocus(WORKSPACE_ID, 30)
 
     now = new Date(now.getTime() + 30 * 60_000)
     const completed = timer.getSnapshot()
@@ -59,7 +61,7 @@ describe('FocusTimerService', () => {
     let now = new Date(2026, 5, 4, 9, 0, 0)
     const notifications: FocusSessionKind[] = []
     timer = createTimer(() => now, (kind) => notifications.push(kind))
-    timer.startBreak(1)
+    timer.startBreak(WORKSPACE_ID, 1)
 
     now = new Date(now.getTime() + 60_000)
     const completed = timer.getSnapshot()
@@ -79,7 +81,7 @@ describe('FocusTimerService', () => {
       () => now,
     )
     try {
-      secondProcess.startFocus(30)
+      secondProcess.startFocus(WORKSPACE_ID, 30)
       expect(timer.getSnapshot()).toMatchObject({ status: 'running', targetSeconds: 1800 })
     } finally {
       secondProcess.dispose()
@@ -87,24 +89,41 @@ describe('FocusTimerService', () => {
     }
   })
 
+  it('keeps a device-wide timer pinned to its workspace when another workspace is selected', () => {
+    const secondWorkspaceId = '00000000-0000-4000-8000-000000000002'
+    let now = new Date(2026, 5, 4, 9, 0, 0)
+    timer = createTimer(() => now)
+    database?.database.prepare(`
+      INSERT INTO workspaces (id, name, created_at, updated_at, onboarding_completed_at)
+      VALUES (?, 'Second workspace', ?, ?, ?)
+    `).run(secondWorkspaceId, now.toISOString(), now.toISOString(), now.toISOString())
+
+    const started = timer.startFocus(WORKSPACE_ID, 25)
+
+    expect(started.workspaceId).toBe(WORKSPACE_ID)
+    expect(timer.getSnapshot(secondWorkspaceId)).toMatchObject({ status: 'idle', workspaceId: secondWorkspaceId })
+    expect(timer.getSnapshot()).toMatchObject({ status: 'running', workspaceId: WORKSPACE_ID })
+    expect(() => timer?.pause(secondWorkspaceId)).toThrow('This timer belongs to a different workspace.')
+  })
+
   it('rejects unsupported focus durations', () => {
     timer = createTimer(() => new Date(2026, 5, 4, 9, 0, 0))
-    expect(() => timer?.startFocus(0)).toThrow('Focus duration must be between 1 and 240 minutes.')
-    expect(() => timer?.startFocus(241)).toThrow('Focus duration must be between 1 and 240 minutes.')
-    expect(() => timer?.startBreak(121)).toThrow('Break duration must be between 1 and 120 minutes.')
+    expect(() => timer?.startFocus(WORKSPACE_ID, 0)).toThrow('Focus duration must be between 1 and 240 minutes.')
+    expect(() => timer?.startFocus(WORKSPACE_ID, 241)).toThrow('Focus duration must be between 1 and 240 minutes.')
+    expect(() => timer?.startBreak(WORKSPACE_ID, 121)).toThrow('Break duration must be between 1 and 120 minutes.')
   })
 
   it('starts custom focus and break lengths and adjusts the remaining time while active', () => {
     let now = new Date(2026, 5, 4, 9, 0, 0)
     timer = createTimer(() => now)
 
-    expect(timer.startFocus(45).targetSeconds).toBe(45 * 60)
+    expect(timer.startFocus(WORKSPACE_ID, 45).targetSeconds).toBe(45 * 60)
     now = new Date(now.getTime() + 2 * 60_000)
-    const adjusted = timer.setRemainingMinutes(7)
+    const adjusted = timer.setRemainingMinutes(WORKSPACE_ID, 7)
     expect(adjusted).toMatchObject({ status: 'running', targetSeconds: 9 * 60, elapsedSeconds: 120, remainingSeconds: 7 * 60 })
-    timer.endEarly()
+    timer.endEarly(WORKSPACE_ID)
 
-    const breakTimer = timer.startBreak(17)
+    const breakTimer = timer.startBreak(WORKSPACE_ID, 17)
     expect(breakTimer).toMatchObject({ kind: 'break', targetSeconds: 17 * 60, remainingSeconds: 17 * 60 })
   })
 
@@ -112,6 +131,10 @@ describe('FocusTimerService', () => {
     directory = mkdtempSync(join(tmpdir(), 'dayplan-focus-timer-test-'))
     database = new DatabaseService(directory)
     new DatabaseMigrator(database).migrate()
+    database.database.prepare(`
+      INSERT INTO workspaces (id, name, created_at, updated_at, onboarding_completed_at)
+      VALUES (?, 'Test workspace', ?, ?, ?)
+    `).run(WORKSPACE_ID, new Date().toISOString(), new Date().toISOString(), new Date().toISOString())
     const repository = new FocusSessionRepository(database.database)
     return new FocusTimerService(repository, { notifyCompletion: onComplete }, clock)
   }

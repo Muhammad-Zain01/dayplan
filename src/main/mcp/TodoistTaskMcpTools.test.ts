@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { TodoistTaskMcpTools } from './TodoistTaskMcpTools'
 
 type ToolHandler = (input: unknown) => Promise<unknown>
+const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
 
 function setup(confirmedDeletion = true) {
   const handlers = new Map<string, ToolHandler>()
@@ -13,13 +14,14 @@ function setup(confirmedDeletion = true) {
     getTask: vi.fn(async () => ({ id: 'task-1', content: 'Plan the day' })),
     listProjects: vi.fn(async () => [{ id: 'inbox', name: 'Inbox', is_inbox_project: true }]),
     listLabels: vi.fn(async () => [{ name: 'work' }]),
-    createTask: vi.fn(async (input: unknown) => ({ id: 'task-2', ...input as object })),
+    createTask: vi.fn(async (_workspaceId: string, input: object) => ({ id: 'task-2', ...input })),
     updateTask: vi.fn(async () => ({ id: 'task-1', content: 'Updated task' })),
     completeTask: vi.fn(async () => ({ completed: true as const })),
     reopenTask: vi.fn(async () => ({ reopened: true as const })),
     deleteTask: vi.fn(async () => ({ deleted: true as const, subtasks_also_deleted: true as const })),
   }
   const deleteApprovalService = { confirmTaskDeletion: vi.fn(async () => confirmedDeletion) }
+  const workspaceService = { assertUsableWorkspace: vi.fn() }
   const server = {
     registerTool: (name: string, config: { inputSchema: { safeParse: (value: unknown) => { success: boolean } } }, handler: ToolHandler) => {
       configs.set(name, config)
@@ -27,8 +29,8 @@ function setup(confirmedDeletion = true) {
     },
   }
 
-  new TodoistTaskMcpTools(taskService as never, deleteApprovalService as never).register(server as unknown as McpServer)
-  return { handlers, configs, taskService, deleteApprovalService }
+  new TodoistTaskMcpTools(taskService as never, deleteApprovalService as never, workspaceService as never).register(server as unknown as McpServer)
+  return { handlers, configs, taskService, deleteApprovalService, workspaceService }
 }
 
 describe('TodoistTaskMcpTools', () => {
@@ -51,39 +53,39 @@ describe('TodoistTaskMcpTools', () => {
 
   it('returns structured task data for read calls', async () => {
     const { handlers, taskService } = setup()
-    const result = await handlers.get('todoist_list_tasks')?.({ limit: 10 }) as { structuredContent: { tasks: unknown[] } }
+    const result = await handlers.get('todoist_list_tasks')?.({ workspace_id: WORKSPACE_ID, limit: 10 }) as { structuredContent: { tasks: unknown[] } }
 
     expect(result.structuredContent.tasks).toHaveLength(1)
-    expect(taskService.listTasks).toHaveBeenCalledWith({ limit: 10 })
+    expect(taskService.listTasks).toHaveBeenCalledWith(WORKSPACE_ID, { limit: 10 })
   })
 
   it('lists completed tasks for a validated explicit date range', async () => {
     const { handlers, configs, taskService } = setup()
-    const range = { since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z' }
+    const range = { workspace_id: WORKSPACE_ID, since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z' }
     const result = await handlers.get('todoist_list_completed_tasks')?.(range) as {
       structuredContent: { tasks: Array<{ id: string; is_completed: boolean }> }
     }
 
     expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse(range).success).toBe(true)
     expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse({
-      since: '2026-09-14T00:00:00Z', until: '2026-09-15T00:00:00Z', unexpected: true,
+      ...range, unexpected: true,
     }).success).toBe(false)
     expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse({
-      since: '2026-09-15T00:00:00Z', until: '2026-09-14T00:00:00Z',
+      ...range, since: '2026-09-15T00:00:00Z', until: '2026-09-14T00:00:00Z',
     }).success).toBe(false)
     expect(configs.get('todoist_list_completed_tasks')?.inputSchema.safeParse({
-      since: '2026-01-01T00:00:00Z', until: '2026-04-02T00:00:00Z',
+      ...range, since: '2026-01-01T00:00:00Z', until: '2026-04-02T00:00:00Z',
     }).success).toBe(false)
-    expect(taskService.listCompletedTasks).toHaveBeenCalledWith(range.since, range.until)
+    expect(taskService.listCompletedTasks).toHaveBeenCalledWith(WORKSPACE_ID, range.since, range.until)
     expect(result.structuredContent.tasks).toEqual([{ id: 'done-1', content: 'Completed today', is_completed: true }])
   })
 
   it('executes task writes directly without asking for application approval', async () => {
     const { handlers, taskService, deleteApprovalService } = setup()
-    const created = await handlers.get('todoist_create_task')?.({ content: 'Plan the day' }) as { structuredContent: unknown }
-    const updated = await handlers.get('todoist_update_task')?.({ task_id: 'task-1', content: 'Revised plan' }) as { structuredContent: unknown }
-    const completed = await handlers.get('todoist_complete_task')?.({ task_id: 'task-1' }) as { structuredContent: { completed: true } }
-    const reopened = await handlers.get('todoist_reopen_task')?.({ task_id: 'task-1' }) as { structuredContent: { reopened: true } }
+    const created = await handlers.get('todoist_create_task')?.({ workspace_id: WORKSPACE_ID, content: 'Plan the day' }) as { structuredContent: unknown }
+    const updated = await handlers.get('todoist_update_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1', content: 'Revised plan' }) as { structuredContent: unknown }
+    const completed = await handlers.get('todoist_complete_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1' }) as { structuredContent: { completed: true } }
+    const reopened = await handlers.get('todoist_reopen_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1' }) as { structuredContent: { reopened: true } }
 
     expect(created.structuredContent).toMatchObject({ id: 'task-2', content: 'Plan the day' })
     expect(updated.structuredContent).toMatchObject({ id: 'task-1', content: 'Updated task' })
@@ -94,16 +96,16 @@ describe('TodoistTaskMcpTools', () => {
 
   it('asks for confirmation only before deleting a task and its subtasks', async () => {
     const { handlers, taskService, deleteApprovalService } = setup()
-    const result = await handlers.get('todoist_delete_task')?.({ task_id: 'task-1' }) as { structuredContent: { deleted: true; subtasks_also_deleted: true } }
+    const result = await handlers.get('todoist_delete_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1' }) as { structuredContent: { deleted: true; subtasks_also_deleted: true } }
 
     expect(deleteApprovalService.confirmTaskDeletion).toHaveBeenCalledWith('task-1')
-    expect(taskService.deleteTask).toHaveBeenCalledWith('task-1')
+    expect(taskService.deleteTask).toHaveBeenCalledWith(WORKSPACE_ID, 'task-1')
     expect(result.structuredContent).toEqual({ deleted: true, subtasks_also_deleted: true })
   })
 
   it('does not delete when task deletion confirmation is cancelled', async () => {
     const { handlers, taskService } = setup(false)
-    const result = await handlers.get('todoist_delete_task')?.({ task_id: 'task-1' }) as { isError: boolean }
+    const result = await handlers.get('todoist_delete_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1' }) as { isError: boolean }
 
     expect(result.isError).toBe(true)
     expect(taskService.deleteTask).not.toHaveBeenCalled()

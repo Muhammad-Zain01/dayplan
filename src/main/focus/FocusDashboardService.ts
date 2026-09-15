@@ -7,7 +7,7 @@ export class FocusDashboardService {
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
-  getMetrics(days: 7 | 30 = 30): FocusDashboardMetrics {
-    return this.sessionRepository.getDashboardMetrics(days, this.clock())
+  getMetrics(workspaceId: string, days: 7 | 30 = 30): FocusDashboardMetrics {
+    return this.sessionRepository.getDashboardMetrics(workspaceId, days, this.clock())
   }
 }
