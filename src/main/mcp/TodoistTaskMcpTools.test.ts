@@ -96,11 +96,11 @@ describe('TodoistTaskMcpTools', () => {
 
   it('asks for confirmation only before deleting a task and its subtasks', async () => {
     const { handlers, taskService, deleteApprovalService } = setup()
-    const result = await handlers.get('todoist_delete_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1' }) as { structuredContent: { deleted: true; subtasks_also_deleted: true } }
+    const result = await handlers.get('todoist_delete_task')?.({ workspace_id: WORKSPACE_ID, task_id: 'task-1' }) as { structuredContent: { task_id: string; deleted: true; subtasks_also_deleted: true } }
 
     expect(deleteApprovalService.confirmTaskDeletion).toHaveBeenCalledWith('task-1')
     expect(taskService.deleteTask).toHaveBeenCalledWith(WORKSPACE_ID, 'task-1')
-    expect(result.structuredContent).toEqual({ deleted: true, subtasks_also_deleted: true })
+    expect(result.structuredContent).toEqual({ task_id: 'task-1', deleted: true, subtasks_also_deleted: true })
   })
 
   it('does not delete when task deletion confirmation is cancelled', async () => {

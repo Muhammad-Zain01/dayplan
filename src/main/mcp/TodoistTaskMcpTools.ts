@@ -166,13 +166,14 @@ export class TodoistTaskMcpTools {
     server.registerTool('todoist_delete_task', {
       description: 'Permanently delete one task and all of its subtasks. Requires Dayplan confirmation.',
       inputSchema: TaskIdSchema,
-      outputSchema: z.object({ deleted: z.literal(true), subtasks_also_deleted: z.literal(true) }),
+      outputSchema: z.object({ task_id: z.string(), deleted: z.literal(true), subtasks_also_deleted: z.literal(true) }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     }, async ({ workspace_id, task_id }) => {
       this.workspaceService.assertUsableWorkspace(workspace_id)
       const approved = await this.deleteApprovalService.confirmTaskDeletion(task_id)
       if (!approved) return { content: [{ type: 'text' as const, text: 'The user cancelled task deletion.' }], isError: true }
-      return this.result(await this.taskService.deleteTask(workspace_id, task_id))
+      const deletion = await this.taskService.deleteTask(workspace_id, task_id)
+      return this.result({ task_id, ...deletion })
     })
   }
 
