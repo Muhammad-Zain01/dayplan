@@ -89,7 +89,7 @@ export default function DashboardFocusChart({ metrics, loading, days }: { metric
           const y = chart.bottom - tick / maxSeconds * (chart.bottom - chart.top)
           return <g key={tick}>
             <line x1={chart.left} x2={chartRight} y1={y} y2={y} stroke="var(--chart-grid)" strokeDasharray={tick === 0 ? undefined : '3 5'} />
-            <text x="31" y={y + 4} textAnchor="end" fill="var(--muted-foreground)" fontSize="10">{formatAxisTime(tick)}</text>
+            <text x="31" y={y + 4} textAnchor="end" fill="var(--muted-foreground)" fontSize="11" fontWeight="500" fontFamily="Inter, ui-sans-serif, system-ui, sans-serif">{formatAxisTime(tick)}</text>
           </g>
         })}
         {areaPath && <path d={areaPath} fill="url(#daily-focus-fill)" />}
@@ -98,7 +98,7 @@ export default function DashboardFocusChart({ metrics, loading, days }: { metric
           <title>{`${point.fullDate}: ${formatMinutes(point.seconds)} focused`}</title>
           {days === 7 && <circle cx={point.x} cy={point.y} r="8" fill="#527f76" fillOpacity="0.1" />}
           <circle cx={point.x} cy={point.y} r={days === 7 ? 3.5 : 2.25} fill="#527f76" stroke="var(--card)" strokeWidth={days === 7 ? 2 : 1.5} />
-          {point.label && <text x={point.x} y="207" textAnchor="middle" fill="var(--muted-foreground)" fontSize="10">{point.label}</text>}
+          {point.label && <text x={point.x} y="207" textAnchor="middle" fill="var(--muted-foreground)" fontSize="11" fontWeight="500" fontFamily="Inter, ui-sans-serif, system-ui, sans-serif">{point.label}</text>}
         </g>)}
       </svg>
       }

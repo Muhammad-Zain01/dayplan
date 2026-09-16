@@ -89,6 +89,21 @@ describe('FocusSessionRepository', () => {
     expect(repository.getDashboardMetrics(WORKSPACE_ID, 7, new Date(start.getTime() + 6 * 60_000)).todaySeconds).toBe(0)
   })
 
+  it('splits today focus into local hourly buckets and excludes breaks', () => {
+    const repository = createRepository()
+    const start = new Date(2026, 5, 4, 9, 45, 0)
+    const focus = repository.createSession(WORKSPACE_ID, 'focus', 30 * 60, start)
+    repository.endSessionEarly(focus.id, new Date(2026, 5, 4, 10, 15, 0))
+    const breakSession = repository.createSession(WORKSPACE_ID, 'break', 15 * 60, new Date(2026, 5, 4, 10, 30, 0))
+    repository.completeSession(breakSession.id, new Date(2026, 5, 4, 10, 45, 0))
+
+    const hourly = repository.getDashboardMetrics(WORKSPACE_ID, 7, new Date(2026, 5, 4, 11, 0, 0)).hourlyFocusTime
+    expect(hourly).toHaveLength(24)
+    expect(hourly[9]?.seconds).toBe(15 * 60)
+    expect(hourly[10]?.seconds).toBe(15 * 60)
+    expect(hourly.reduce((sum, entry) => sum + entry.seconds, 0)).toBe(30 * 60)
+  })
+
   function createRepository(): FocusSessionRepository {
     directory = mkdtempSync(join(tmpdir(), 'dayplan-focus-test-'))
     database = new DatabaseService(directory)

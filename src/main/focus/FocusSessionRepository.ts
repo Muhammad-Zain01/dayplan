@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
-import type { DailyFocusTotal, FocusDashboardMetrics, FocusSessionKind, FocusSessionStatus } from '../../shared/domain'
+import type { DailyFocusTotal, FocusDashboardMetrics, FocusSessionKind, FocusSessionStatus, HourlyFocusTotal } from '../../shared/domain'
 
 export interface FocusSessionRecord {
   id: string
@@ -222,10 +222,14 @@ export class FocusSessionRepository {
     `).get(workspaceId, todayStart, tomorrowStart) as { count: number }
 
     const recentFocusTime: DailyFocusTotal[] = [...dayTotals].map(([date, seconds]) => ({ date, seconds }))
+    const hourlyFocusTime: HourlyFocusTotal[] = Array.from({ length: 24 }, (_, hour) => ({ hour, seconds: 0 }))
+    const todayStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    for (const interval of intervals) this.addIntervalToLocalHours(interval, todayStartDate, now, hourlyFocusTime)
     return {
       todaySeconds: dayTotals.get(todayKey) ?? 0,
       todayCompletedSessions: count.count,
       recentFocusTime,
+      hourlyFocusTime,
       refreshedAt: now.toISOString(),
     }
   }
@@ -298,6 +302,22 @@ export class FocusSessionRepository {
       const key = this.localDateKey(cursor)
       if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + Math.floor((segmentEnd - cursor.getTime()) / 1000))
       cursor = nextDay
+    }
+  }
+
+  private addIntervalToLocalHours(interval: FocusIntervalRow, dayStart: Date, now: Date, totals: HourlyFocusTotal[]): void {
+    const intervalStart = new Date(interval.started_at)
+    const intervalEnd = interval.ended_at ? new Date(interval.ended_at) : now
+    let cursor = new Date(Math.max(intervalStart.getTime(), dayStart.getTime()))
+    const dayEnd = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + 1)
+    const clippedEnd = Math.min(intervalEnd.getTime(), now.getTime(), dayEnd.getTime())
+    while (cursor.getTime() < clippedEnd) {
+      const nextHour = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), cursor.getHours() + 1)
+      const segmentEnd = Math.min(nextHour.getTime(), clippedEnd)
+      const hour = cursor.getHours()
+      const target = totals[hour]
+      if (target) target.seconds += Math.floor((segmentEnd - cursor.getTime()) / 1000)
+      cursor = nextHour
     }
   }
 

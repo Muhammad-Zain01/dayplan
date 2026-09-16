@@ -4,7 +4,7 @@ import {
   Bell, ChevronDown, Coffee, FolderKanban, LayoutDashboard, ListTodo, LoaderCircle, LogOut, Moon, Monitor, Pause, Play, Plus, RotateCcw, Search, Settings2,
   Server, ShieldCheck, Sun, Target, Timer, TriangleAlert, UserRound, Wrench,
 } from 'lucide-react'
-import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type AppSection, type DashboardMetrics, type FocusDashboardMetrics, type FocusTimerSnapshot, type McpHttpStatus, type TaskDraft, type TaskPatch, type TodoistTask, type WorkspaceSetupStatus, type WorkspaceSummary } from '../../shared/domain'
+import { DEFAULT_FOCUS_TIMER_PREFERENCES, FOCUS_TIMER_DURATION_LIMITS, type AppearanceMode, type AppSection, type DashboardMetrics, type FocusDashboardMetrics, type FocusTimerPreferences, type FocusTimerSnapshot, type McpHttpStatus, type TaskDraft, type TaskPatch, type TodoistTask, type WorkspaceSetupStatus, type WorkspaceSummary } from '../../shared/domain'
 import dayplanLogoDark from '../../../assets/branding/dayplan-logo-dark.svg'
 import dayplanLogoLight from '../../../assets/branding/dayplan-logo-light.svg'
 import dayplanMarkDark from '../../../assets/branding/dayplan-mark-dark.svg'
@@ -13,6 +13,8 @@ import { TaskComposer } from './components/TaskComposer'
 import { DatePicker } from './components/DatePicker'
 import DashboardCompletionChart from './components/DashboardCompletionChart'
 import DashboardFocusChart from './components/DashboardFocusChart'
+import FocusDayChart from './components/FocusDayChart'
+import { FocusTimerSettingsDialog } from './components/FocusTimerSettingsDialog'
 import { TaskRow } from './components/TaskRow'
 import { ToolsPage } from './modules/tools/ToolsPage'
 import { ProductivityToolRegistry } from './modules/tools/ProductivityToolRegistry'
@@ -398,7 +400,7 @@ function DashboardPage({ metrics, focusMetrics, loading, ownerName, onCreate, on
       <DashboardFocusCard todaySeconds={focusMetrics?.todaySeconds ?? 0} />
     </div>
 
-    <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-2">
+    <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
       <Card className="h-full">
         <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle>{completionRange === 7 ? 'Weekly rhythm' : 'Monthly rhythm'}</CardTitle><p className="mt-1 text-xs text-muted-foreground">Tasks completed in the last {completionRange} days</p></div><div role="group" aria-label="Completion chart date range" className="inline-flex shrink-0 rounded-lg border border-border bg-muted/45 p-0.5">{([7, 30] as const).map((days) => <button key={days} type="button" aria-pressed={completionRange === days} onClick={() => setCompletionRange(days)} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${completionRange === days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{days} days</button>)}</div></CardHeader>
         <CardContent>
@@ -414,16 +416,22 @@ function DashboardPage({ metrics, focusMetrics, loading, ownerName, onCreate, on
         </CardContent>
       </Card>
     </div>
-    <Card className="mt-5">
-      <CardHeader className="flex-row items-start justify-between gap-3">
-        <div><CardTitle>Focus time</CardTitle><p className="mt-1 text-xs text-muted-foreground">Time spent in focus sessions over the last {focusRange} days</p></div>
-        <div className="flex shrink-0 items-center gap-2">
-          <div role="group" aria-label="Focus chart date range" className="inline-flex rounded-lg border border-border bg-muted/45 p-0.5">{([7, 30] as const).map((days) => <button key={days} type="button" aria-pressed={focusRange === days} onClick={() => setFocusRange(days)} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${focusRange === days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{days} days</button>)}</div>
-          <Button size="sm" variant="outline" onClick={onOpenFocus}><Timer size={14} />Focus</Button>
-        </div>
-      </CardHeader>
-      <CardContent><DashboardFocusChart metrics={focusMetrics} loading={loading && !focusMetrics} days={focusRange} /></CardContent>
-    </Card>
+    <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-2">
+      <Card className="h-full">
+        <CardHeader className="flex-row items-start justify-between gap-3">
+          <div><CardTitle>Focus history</CardTitle><p className="mt-1 text-xs text-muted-foreground">Time spent in focus sessions over the last {focusRange} days</p></div>
+          <div className="flex shrink-0 items-center gap-2">
+            <div role="group" aria-label="Focus chart date range" className="inline-flex rounded-lg border border-border bg-muted/45 p-0.5">{([7, 30] as const).map((days) => <button key={days} type="button" aria-pressed={focusRange === days} onClick={() => setFocusRange(days)} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${focusRange === days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{days} days</button>)}</div>
+            <Button size="sm" variant="outline" onClick={onOpenFocus}><Timer size={14} />Focus</Button>
+          </div>
+        </CardHeader>
+        <CardContent><DashboardFocusChart metrics={focusMetrics} loading={loading && !focusMetrics} days={focusRange} /></CardContent>
+      </Card>
+      <Card className="h-full">
+        <CardHeader><div><CardTitle>Today by hour</CardTitle><p className="mt-1 text-xs text-muted-foreground">Focus time across the whole day</p></div></CardHeader>
+        <CardContent><FocusDayChart metrics={focusMetrics} loading={loading && !focusMetrics} /></CardContent>
+      </Card>
+    </div>
   </>
 }
 
@@ -440,6 +448,7 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
   const [range, setRange] = useState<7 | 30>(7)
   const [commandError, setCommandError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [timerSettingsOpen, setTimerSettingsOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -470,6 +479,14 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
     return () => { active = false; unsubscribe() }
   }, [])
 
+  useEffect(() => {
+    const refresh = (): void => {
+      void onMetricsRefresh().catch((caught: unknown) => setCommandError(caught instanceof Error ? caught.message : 'Focus history could not be refreshed.'))
+    }
+    const interval = window.setInterval(refresh, 60_000)
+    return () => window.clearInterval(interval)
+  }, [onMetricsRefresh])
+
   const active = snapshot?.status === 'running' || snapshot?.status === 'paused'
   const progress = snapshot && snapshot.targetSeconds > 0 ? snapshot.elapsedSeconds / snapshot.targetSeconds : 0
   const modeLabel = snapshot?.kind === 'break' ? 'Break' : 'Focus'
@@ -496,19 +513,15 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
     await runCommand(() => window.dayplan.endFocusTimer())
   }
 
-  async function saveTimerPreferences(): Promise<{ focusMinutes: number; breakMinutes: number }> {
-    if (focusMinutes === null) throw new Error('Focus time must be a whole number from 1 to 240 minutes.')
-    if (breakMinutes === null) throw new Error('Break time must be a whole number from 1 to 120 minutes.')
-    const preferences = await window.dayplan.setFocusTimerPreferences({ focusMinutes, breakMinutes })
+  async function saveTimerPreferences(next?: FocusTimerPreferences): Promise<FocusTimerPreferences> {
+    const nextFocusMinutes = next?.focusMinutes ?? focusMinutes
+    const nextBreakMinutes = next?.breakMinutes ?? breakMinutes
+    if (!Number.isInteger(nextFocusMinutes) || nextFocusMinutes < FOCUS_TIMER_DURATION_LIMITS.focus.min || nextFocusMinutes > FOCUS_TIMER_DURATION_LIMITS.focus.max) throw new Error('Focus interval must be a whole number from 1 to 240 minutes.')
+    if (!Number.isInteger(nextBreakMinutes) || nextBreakMinutes < FOCUS_TIMER_DURATION_LIMITS.break.min || nextBreakMinutes > FOCUS_TIMER_DURATION_LIMITS.break.max) throw new Error('Break length must be a whole number from 1 to 120 minutes.')
+    const preferences = await window.dayplan.setFocusTimerPreferences({ focusMinutes: nextFocusMinutes, breakMinutes: nextBreakMinutes })
     setFocusMinutesInput(String(preferences.focusMinutes))
     setBreakMinutesInput(String(preferences.breakMinutes))
     return preferences
-  }
-
-  function persistDurationPreferences(): void {
-    if (!preferencesLoaded || focusMinutes === null || breakMinutes === null) return
-    void window.dayplan.setFocusTimerPreferences({ focusMinutes, breakMinutes })
-      .catch((caught: unknown) => setCommandError(caught instanceof Error ? caught.message : 'Timer preferences could not be saved.'))
   }
 
   function beginAdjustingTime(): void {
@@ -533,7 +546,8 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
   return <>
     <PageHeading eyebrow="Focus workspace" title="Focus timer" description="Choose a block, keep your attention on one thing, and let Dayplan track the time." />
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
-      <Card>
+      <Card className="relative">
+        <Button variant="ghost" size="icon" className="absolute right-4 top-4 z-10 h-8 w-8 rounded-lg" aria-label="Open timer settings" title="Timer settings" onClick={() => setTimerSettingsOpen(true)}><Settings2 size={16} /></Button>
         <CardContent className="flex min-h-[440px] flex-col items-center justify-center p-6 text-center sm:p-9">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-muted/55 px-3 py-1.5 text-xs font-medium text-muted-foreground"><span className={`h-2 w-2 rounded-full ${snapshot?.status === 'running' ? 'bg-emerald-500' : snapshot?.status === 'paused' ? 'bg-amber-500' : 'bg-primary/50'}`} />{phaseLabel}{snapshot?.kind ? ` · ${modeLabel}` : ''}</div>
           <div className="relative mb-5 flex h-56 w-56 items-center justify-center">
@@ -557,16 +571,7 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
             <Button variant="outline" disabled={busy} onClick={beginAdjustingTime}><Timer size={15} />Adjust time</Button>
             <Button variant="outline" disabled={busy} onClick={() => void endTimer()}><RotateCcw size={15} />End session</Button>
           </div> : <div className="flex w-full max-w-[560px] flex-col items-center gap-4">
-            <div className="grid w-full grid-cols-1 gap-3 text-left sm:grid-cols-2">
-              <label htmlFor="focus-duration-minutes" className="text-xs font-medium">Focus duration (minutes)
-                <Input id="focus-duration-minutes" type="number" inputMode="numeric" min={FOCUS_TIMER_DURATION_LIMITS.focus.min} max={FOCUS_TIMER_DURATION_LIMITS.focus.max} step={1} className="mt-1" value={focusMinutesInput} onChange={(event) => setFocusMinutesInput(event.target.value)} onBlur={persistDurationPreferences} />
-                <span className="mt-1 block text-[10px] font-normal text-muted-foreground">1–240 minutes</span>
-              </label>
-              <label htmlFor="break-duration-minutes" className="text-xs font-medium">Break duration (minutes)
-                <Input id="break-duration-minutes" type="number" inputMode="numeric" min={FOCUS_TIMER_DURATION_LIMITS.break.min} max={FOCUS_TIMER_DURATION_LIMITS.break.max} step={1} className="mt-1" value={breakMinutesInput} onChange={(event) => setBreakMinutesInput(event.target.value)} onBlur={persistDurationPreferences} />
-                <span className="mt-1 block text-[10px] font-normal text-muted-foreground">1–120 minutes</span>
-              </label>
-            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-xs text-muted-foreground"><span>Focus <strong className="font-semibold text-foreground">{focusMinutes ?? '—'} min</strong></span><span className="text-border">·</span><span>Break <strong className="font-semibold text-foreground">{breakMinutes ?? '—'} min</strong></span><button type="button" className="ml-1 font-medium text-primary hover:underline" onClick={() => setTimerSettingsOpen(true)}>Change</button></div>
             <div className="flex flex-wrap justify-center gap-2">
               <Button disabled={busy || !snapshot || !preferencesLoaded || focusMinutes === null || breakMinutes === null} onClick={() => void runCommand(async () => {
                 const preferences = await saveTimerPreferences()
@@ -578,7 +583,6 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
               })}><Coffee size={15} />Start {breakMinutes ?? '—'} min break</Button>
             </div>
           </div>}
-          <p className="mt-5 max-w-md text-xs leading-5 text-muted-foreground">The timer keeps running when you close the window. Closing Dayplan from the tray ends the active session and saves its focused time.</p>
           {commandError && <div role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">{commandError}</div>}
         </CardContent>
       </Card>
@@ -588,10 +592,17 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
         <MetricCard title="Completed focus sessions" value={metrics?.todayCompletedSessions ?? 0} caption="Completed today" icon={CheckCircle2} tint="green" loading={metrics === null} />
       </div>
     </div>
-    <Card className="mt-5">
-      <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle>Daily focus history</CardTitle><p className="mt-1 text-xs text-muted-foreground">Actual focus time per day</p></div><div role="group" aria-label="Focus history date range" className="inline-flex shrink-0 rounded-lg border border-border bg-muted/45 p-0.5">{([7, 30] as const).map((days) => <button key={days} type="button" aria-pressed={range === days} onClick={() => setRange(days)} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${range === days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{days} days</button>)}</div></CardHeader>
-      <CardContent><DashboardFocusChart metrics={metrics} loading={metrics === null} days={range} /><div className="flex items-center gap-2 border-t border-border/60 pt-3 text-[11px] text-muted-foreground"><span className="h-1.5 w-1.5 rounded-full bg-primary" />Only active focus minutes count; breaks and paused time are excluded.</div></CardContent>
-    </Card>
+    <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-2">
+      <Card className="h-full">
+        <CardHeader><div><CardTitle>Today by hour</CardTitle><p className="mt-1 text-xs text-muted-foreground">Focus time across the whole day</p></div></CardHeader>
+        <CardContent><FocusDayChart metrics={metrics} loading={metrics === null} /></CardContent>
+      </Card>
+      <Card className="h-full">
+        <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle>Daily focus history</CardTitle><p className="mt-1 text-xs text-muted-foreground">Actual focus time per day</p></div><div role="group" aria-label="Focus history date range" className="inline-flex shrink-0 rounded-lg border border-border bg-muted/45 p-0.5">{([7, 30] as const).map((days) => <button key={days} type="button" aria-pressed={range === days} onClick={() => setRange(days)} className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${range === days ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{days} days</button>)}</div></CardHeader>
+        <CardContent><DashboardFocusChart metrics={metrics} loading={metrics === null} days={range} /><div className="flex items-center gap-2 border-t border-border/60 pt-3 text-[11px] text-muted-foreground"><span className="h-1.5 w-1.5 rounded-full bg-primary" />Only active focus minutes count; breaks and paused time are excluded.</div></CardContent>
+      </Card>
+    </div>
+    <FocusTimerSettingsDialog open={timerSettingsOpen} onOpenChange={setTimerSettingsOpen} preferences={{ focusMinutes: focusMinutes ?? DEFAULT_FOCUS_TIMER_PREFERENCES.focusMinutes, breakMinutes: breakMinutes ?? DEFAULT_FOCUS_TIMER_PREFERENCES.breakMinutes }} onSave={saveTimerPreferences} />
   </>
 }
 

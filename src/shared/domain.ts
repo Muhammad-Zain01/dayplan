@@ -85,10 +85,16 @@ export interface DailyFocusTotal {
   seconds: number
 }
 
+export interface HourlyFocusTotal {
+  hour: number
+  seconds: number
+}
+
 export interface FocusDashboardMetrics {
   todaySeconds: number
   todayCompletedSessions: number
   recentFocusTime: DailyFocusTotal[]
+  hourlyFocusTime: HourlyFocusTotal[]
   refreshedAt: string
 }
 

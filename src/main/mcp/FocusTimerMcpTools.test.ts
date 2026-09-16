@@ -79,7 +79,7 @@ describe('FocusTimerMcpTools', () => {
       endEarly: vi.fn(() => snapshot),
     }
     const dashboard = {
-      getMetrics: vi.fn(() => ({ todaySeconds: 900, todayCompletedSessions: 1, recentFocusTime: [], refreshedAt: snapshot.updatedAt })),
+      getMetrics: vi.fn(() => ({ todaySeconds: 900, todayCompletedSessions: 1, recentFocusTime: [], hourlyFocusTime: [], refreshedAt: snapshot.updatedAt })),
     }
     const workspaceService = { assertUsableWorkspace: vi.fn() }
     return { server, handlers, timer, dashboard, workspaceService }

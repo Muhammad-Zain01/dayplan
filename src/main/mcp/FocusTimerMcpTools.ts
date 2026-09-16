@@ -20,6 +20,7 @@ const FocusMetricsSchema = z.object({
   todaySeconds: z.number().int().nonnegative(),
   todayCompletedSessions: z.number().int().nonnegative(),
   recentFocusTime: z.array(z.object({ date: z.iso.date(), seconds: z.number().int().nonnegative() })),
+  hourlyFocusTime: z.array(z.object({ hour: z.number().int().min(0).max(23), seconds: z.number().int().nonnegative() })),
   refreshedAt: z.iso.datetime(),
 })
 
