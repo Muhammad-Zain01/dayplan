@@ -545,8 +545,8 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
 
   return <>
     <PageHeading eyebrow="Focus workspace" title="Focus timer" description="Choose a block, keep your attention on one thing, and let Dayplan track the time." />
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
-      <Card className="relative">
+    <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
+      <Card className="relative h-full">
         <Button variant="ghost" size="icon" className="absolute right-4 top-4 z-10 h-8 w-8 rounded-lg" aria-label="Open timer settings" title="Timer settings" onClick={() => setTimerSettingsOpen(true)}><Settings2 size={16} /></Button>
         <CardContent className="flex min-h-[440px] flex-col items-center justify-center p-6 text-center sm:p-9">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-muted/55 px-3 py-1.5 text-xs font-medium text-muted-foreground"><span className={`h-2 w-2 rounded-full ${snapshot?.status === 'running' ? 'bg-emerald-500' : snapshot?.status === 'paused' ? 'bg-amber-500' : 'bg-primary/50'}`} />{phaseLabel}{snapshot?.kind ? ` · ${modeLabel}` : ''}</div>
@@ -587,9 +587,9 @@ function FocusTimerPage({ metrics, onMetricsRefresh }: {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 content-start">
-        <MetricCard title="Focus time today" value={formatFocusDuration(metrics?.todaySeconds ?? 0)} caption="Breaks are not included" icon={Clock3} tint="teal" loading={metrics === null} />
-        <MetricCard title="Completed focus sessions" value={metrics?.todayCompletedSessions ?? 0} caption="Completed today" icon={CheckCircle2} tint="green" loading={metrics === null} />
+      <div className="grid h-full min-h-0 grid-rows-2 gap-4">
+        <MetricCard className="h-full" title="Focus time today" value={formatFocusDuration(metrics?.todaySeconds ?? 0)} caption="Breaks are not included" icon={Clock3} tint="teal" loading={metrics === null} />
+        <MetricCard className="h-full" title="Completed focus sessions" value={metrics?.todayCompletedSessions ?? 0} caption="Completed today" icon={CheckCircle2} tint="green" loading={metrics === null} />
       </div>
     </div>
     <div className="mt-5 grid items-stretch gap-5 xl:grid-cols-2">
@@ -699,9 +699,9 @@ function DashboardFocusCard({ todaySeconds }: { todaySeconds: number }) {
   </Card>
 }
 
-function MetricCard({ title, value, caption, icon: Icon, tint, loading }: { title: string; value?: number | string; caption: string; icon: typeof ListTodo; tint: string; loading: boolean }) {
+function MetricCard({ title, value, caption, icon: Icon, tint, loading, className = '' }: { title: string; value?: number | string; caption: string; icon: typeof ListTodo; tint: string; loading: boolean; className?: string }) {
   const tones: Record<string, string> = { blue: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300', violet: 'bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300', amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300', green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300', teal: 'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300' }
-  return <Card className="min-w-0"><CardContent className="p-4 sm:p-5"><div className="flex items-center justify-between gap-2"><div className="truncate text-xs font-medium text-muted-foreground">{title}</div><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tones[tint]}`}><Icon size={16} /></div></div><div className="mt-3 text-[27px] font-semibold leading-none tracking-[-0.04em]">{loading ? <span className="inline-block h-7 w-10 animate-pulse rounded bg-muted align-middle" /> : value ?? 0}</div><div className="mt-2 truncate text-[10px] text-muted-foreground sm:text-[11px]">{caption}</div></CardContent></Card>
+  return <Card className={`min-w-0 ${className}`}><CardContent className="p-4 sm:p-5"><div className="flex items-center justify-between gap-2"><div className="truncate text-xs font-medium text-muted-foreground">{title}</div><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tones[tint]}`}><Icon size={16} /></div></div><div className="mt-3 text-[27px] font-semibold leading-none tracking-[-0.04em]">{loading ? <span className="inline-block h-7 w-10 animate-pulse rounded bg-muted align-middle" /> : value ?? 0}</div><div className="mt-2 truncate text-[10px] text-muted-foreground sm:text-[11px]">{caption}</div></CardContent></Card>
 }
 
 function TaskPage({ section, tasks, loading, search, showCompleted, taskDateFilter, onTaskDateChange, onShowCompleted, onSearch, onCreate, onEdit, onComplete, onReopen, onDelete }: {
