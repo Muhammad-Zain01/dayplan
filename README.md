@@ -18,13 +18,20 @@
 </p>
 
 <p align="center">
+  <a href="#preview">Preview</a> ·
   <a href="#features">Features</a> ·
   <a href="#run-locally">Run locally</a> ·
-  <a href="#connect-an-mcp-host">MCP</a> ·
+  <a href="#connect-an-mcp-client">MCP API</a> ·
   <a href="#local-data-and-privacy">Privacy</a>
 </p>
 
 Dayplan is a macOS and Windows desktop app for keeping Todoist work, local focus sessions, and multiple personal workspaces in one quiet, dependable place. Your data stays on your device while Todoist remains the source of truth for remote tasks.
+
+## Preview
+
+<p align="center">
+  <img src="dayplan-preview.png" alt="Dayplan dashboard preview" width="960">
+</p>
 
 ## Features
 
@@ -85,9 +92,9 @@ npx electron-builder --win nsis
 
 The package for each operating system is built on that OS. GitHub Actions will build and upload both installers from the release workflow.
 
-## Connect an MCP host
+## Connect an MCP client
 
-Dayplan supports both stdio and local Streamable HTTP MCP connections. The existing stdio setup remains useful for hosts that launch a local process:
+Dayplan exposes a simple local Streamable HTTP MCP API that works with Codex and any other compatible client. It also supports stdio for clients that launch a local process:
 
 ```json
 {
@@ -102,14 +109,20 @@ Dayplan supports both stdio and local Streamable HTTP MCP connections. The exist
 
 On macOS, the executable is inside `Dayplan.app/Contents/MacOS/Dayplan`. On Windows, use the installed `Dayplan.exe`.
 
-For Codex, open Dayplan Settings and enable **Local MCP server**. Add this entry to Codex's MCP configuration:
+To use the HTTP API, open Dayplan Settings and enable **Local MCP server**, then point your client at:
+
+```text
+http://127.0.0.1:47631/mcp
+```
+
+For example, Codex can use this configuration:
 
 ```toml
 [mcp_servers.dayplan]
 url = "http://127.0.0.1:47631/mcp"
 ```
 
-Keep Dayplan open while Codex uses the server. The endpoint starts automatically with the app whenever the setting is enabled and stops when the app quits. It listens only on `127.0.0.1`; Host and Origin headers are checked. There is no authentication, so other local applications can read and change Todoist task data. Only deleting a task requires Dayplan confirmation. Call `workspace_list` to discover active workspace IDs, then include the chosen `workspace_id` in task and focus tool calls. If port `47631` is occupied, Settings reports the problem; close the process using that port, then turn the server off and on again. The endpoint is not available to Codex on another machine.
+Keep Dayplan open while a client uses the server. The endpoint starts automatically whenever the setting is enabled and stops when the app quits. It listens only on `127.0.0.1`; Host and Origin headers are checked. There is no authentication, so other local applications can read and change Todoist task data. Only deleting a task requires Dayplan confirmation. Call `workspace_list` to discover active workspace IDs, then include the chosen `workspace_id` in task and focus tool calls. If port `47631` is occupied, Settings reports the problem; close the process using that port, then turn the server off and on again. The endpoint is local to the computer running Dayplan.
 
 ## Local data and privacy
 
