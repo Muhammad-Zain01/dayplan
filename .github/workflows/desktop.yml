@@ -33,6 +33,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # npm ci runs electron-builder's install-app-deps hook, which builds
+      # better-sqlite3 for Electron. Rebuild it for the host Node runtime
+      # before Vitest loads it; the packaging step rebuilds it for Electron again.
+      - run: npm rebuild better-sqlite3
       - run: npm run typecheck
       - run: npm test
       - run: npm run ${{ matrix.package-script }}
