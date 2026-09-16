@@ -6,15 +6,19 @@ import { tmpdir } from 'node:os'
 import { DatabaseMigrator } from './DatabaseMigrator'
 
 const temporaryDirectories: string[] = []
+const temporaryDatabases: Database.Database[] = []
 
 afterEach(() => {
+  for (const database of temporaryDatabases.splice(0)) database.close()
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
 function createDatabase(): Database.Database {
   const directory = mkdtempSync(join(tmpdir(), 'dayplan-workspaces-'))
   temporaryDirectories.push(directory)
-  return new Database(join(directory, 'test.sqlite3'))
+  const database = new Database(join(directory, 'test.sqlite3'))
+  temporaryDatabases.push(database)
+  return database
 }
 
 function createV2Schema(database: Database.Database): void {
