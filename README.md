@@ -90,7 +90,7 @@ npx electron-builder --mac dmg
 npx electron-builder --win nsis
 ```
 
-The package for each operating system is built on that OS. GitHub Actions will build and upload both installers from the release workflow.
+The package for each operating system is built on that OS. GitHub Actions builds and uploads both installers on pushes to `main`, pull requests, and manual workflow runs. Download the workflow artifacts and attach them to a GitHub Release manually when you are ready to publish a version.
 
 ## Connect an MCP client
 
