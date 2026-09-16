@@ -10,7 +10,6 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-348E7C?style=flat-square" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/status-in%20development-F58234?style=flat-square" alt="In development">
   <img src="https://img.shields.io/badge/version-0.2.0-5C6B68?style=flat-square" alt="Version 0.2.0">
   <img src="https://img.shields.io/badge/Electron-44.3.0-47848F?logo=electron&logoColor=white&style=flat-square" alt="Electron 44.3.0">
   <img src="https://img.shields.io/badge/React-19.2-149ECA?logo=react&logoColor=white&style=flat-square" alt="React 19.2">
@@ -29,30 +28,37 @@ Dayplan is a macOS and Windows desktop app for keeping Todoist work, local focus
 
 ## Features
 
-- Dashboard with Todoist open-task, due-today, overdue, completed-today, priority, and seven-day completion summaries.
-- Focus timer with editable 1–240-minute focus sessions and 1–120-minute breaks, active-time adjustment, pause/resume, a 24-hour focus view, and local daily focus history.
-- Dayplan menu-bar/system-tray controls. The countdown appears beside the macOS menu-bar icon and in the Windows tray tooltip/menu. Closing the window hides Dayplan so the timer can continue.
-- Focus and break completion notifications with an audible alert (the macOS Glass sound and the system notification sound on Windows). The timer pauses when the computer sleeps; quitting Dayplan ends an active session and saves its actual focus time.
-- Today and Tasks views with search, create, edit, complete, reopen, and delete actions.
-- Task creation with Inbox as the default project, project selection, due date, priority, description, and labels.
-- Settings for the System/Light/Dark appearance, Todoist API token, and optional local MCP HTTP server.
-- First-run onboarding for the owner name, first workspace, optional Todoist connection, and focus/break defaults. Existing installations migrate into a Personal workspace without requiring the token again.
-- Multiple workspaces with independent Todoist tokens, focus settings, and focus history. Workspaces can be renamed, archived, and restored; Todoist tasks stay remote and are never deleted by archiving.
-- Nineteen local MCP tools for workspace discovery, Todoist tasks (including completed-task history by date range), project/label discovery, focus timer controls, and focus statistics. Task writes and timer controls run after validation; deleting a task requires confirmation because Todoist also deletes its subtasks. Workspace-scoped tools require an explicit `workspace_id`.
-- SQLite local settings and app data, including the owner profile, selected workspace, per-workspace Todoist tokens, and focus history.
+### Plan your work
 
-## Project status
+- **Dashboard** — See open, due, overdue, and completed Todoist tasks alongside priority and completion summaries.
+- **Today and Tasks** — Search, create, edit, complete, reopen, and delete tasks from focused task views.
+- **Task details** — Set Inbox or project, due date, priority, description, and labels while composing a task.
 
-Dayplan is under active development. The macOS app is the primary local test target; Windows packaging and release validation are still pending. Screenshots will be added as the interface settles.
+### Protect your focus
 
-Focus sessions, active intervals, and timer duration preferences are stored locally in SQLite. Focus duration defaults to 30 minutes and break duration to five minutes. Paused time and breaks are excluded from focus totals, and sessions crossing local midnight are split across the relevant days. The Focus screen derives an hourly local-day series from those intervals alongside the 7/30-day history. See the [architecture notes](ARCHITECTURE.md#focus-timer) for behavior and data boundaries.
+- **Focus timer** — Run 1–240-minute focus intervals or 1–120-minute breaks with pause, resume, and time adjustment controls.
+- **Focus insights** — Review hourly focus across the day and daily history derived from active intervals; pauses and breaks are excluded.
+- **Desktop alerts** — Receive a notification and audible alert when focus or break timers finish, with menu-bar and system-tray controls.
 
-macOS requires a code-signed app for native notifications. They may not appear when running an unsigned development build; tray controls and timer state are still available.
+### Workspaces that stay yours
+
+- **Multiple workspaces** — Keep independent Todoist tokens, focus settings, and focus history in each workspace. Rename, archive, and restore spaces without deleting remote tasks.
+- **Guided onboarding** — Set your owner name, workspace, Todoist connection, and timer defaults on first launch or when creating a new workspace.
+- **Local-first storage** — Store the owner profile, workspace selection, settings, and focus history in SQLite on your device.
+
+### Local automation
+
+- **MCP tools** — Use nineteen workspace-scoped tools for Todoist tasks, completed-task history, projects, labels, focus controls, and statistics over stdio or opt-in local HTTP.
+- **Safe boundaries** — Validated task writes and timer controls run immediately; permanent task deletion asks for confirmation because Todoist also deletes subtasks.
+
+Focus duration defaults to 30 minutes and break duration to five minutes. See the [architecture notes](ARCHITECTURE.md#focus-timer) for behavior and data boundaries.
 
 ## Requirements
 
 - Node.js 24 or later and npm.
 - macOS or Windows for local desktop execution. Native modules must be installed/rebuilt on the target operating system.
+
+macOS native notifications require a code-signed app; unsigned builds may not display them. Tray controls and timer state remain available.
 
 ## Run locally
 
